@@ -77,12 +77,18 @@ Main script that parses Terraform plan output and generates a human-readable rep
 ✗ DESTROY: 1
   • azurerm_public_ip.old_pip
 
+⟳ REPLACE: 3
+  • azurerm_network_interface.nic_old
+  • azurerm_virtual_machine.vm_resize
+  • azurerm_subnet.subnet_config_change
+
 ================================================================================
 
 Plan: 
 5 to add, 
 2 to change, 
-1 to destroy.
+1 to destroy, 
+3 to replace.
 ```
 
 ### `Convert-AzDevOpsLog.ps1`
