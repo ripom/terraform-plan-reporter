@@ -168,7 +168,9 @@ The repository includes sample files for testing:
 The parser:
 1. Reads the log file line by line
 2. Strips ANSI color codes and timestamps using regex patterns
-3. Identifies resource action lines matching pattern: `# <resource_name> will be <action>`
+3. Identifies resource action lines matching patterns:
+   - `# <resource_name> will be <action>` (created, destroyed, updated, replaced)
+   - `# <resource_name> must be replaced`
 4. Captures attribute changes for each resource when `-ShowChanges` is enabled
 5. Groups resources by action type
 6. Displays formatted output with color coding and icons

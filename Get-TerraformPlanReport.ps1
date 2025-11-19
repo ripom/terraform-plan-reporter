@@ -71,8 +71,12 @@ foreach ($line in $lines) {
     # Direct 'terraform plan -no-color' output doesn't have timestamps
     $cleanLine = $line -replace '\x1b\[[0-9;]*m', '' -replace '\[[0-9;]*m', '' -replace '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s+', ''
     
-    # Match resource declaration lines like "  # azurerm_resource.name will be created"
-    if ($cleanLine -match '^\s*#\s+(.+?)\s+will be (created|destroyed|updated|replaced)') {
+    # Match resource declaration lines like:
+    # "  # azurerm_resource.name will be created"
+    # "  # azurerm_resource.name will be destroyed"
+    # "  # azurerm_resource.name will be updated"
+    # "  # azurerm_resource.name must be replaced"
+    if ($cleanLine -match '^\s*#\s+(.+?)\s+(will be|must be)\s+(created|destroyed|updated|replaced)') {
         # Save previous resource if exists
         if ($currentResource) {
             $results += [PSCustomObject]@{
@@ -83,7 +87,7 @@ foreach ($line in $lines) {
         }
         
         $resourceName = $matches[1]
-        $action = $matches[2]
+        $action = $matches[3]  # The action is now in match group 3
         
         # Map action to shorter form
         $actionType = switch ($action) {
@@ -233,7 +237,7 @@ if ($results.Count -eq 0) {
     Write-Host ", "
     Write-Host "$destroyCount to destroy" -NoNewline -ForegroundColor Red
     if ($replaceCount -gt 0) {
-        Write-Host ", " -NoNewline
+        Write-Host ", "
         Write-Host "$replaceCount to replace" -NoNewline -ForegroundColor Magenta
     }
     Write-Host ".`n"
