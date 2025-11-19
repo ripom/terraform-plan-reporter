@@ -7,7 +7,7 @@ A PowerShell-based tool to parse and humanize Terraform plan output, making it e
 When running Terraform plans, especially in CI/CD pipelines like Azure DevOps, the output can be verbose and difficult to parse quickly. This project provides tools to:
 
 1. **Parse Terraform plan output** into a clean, human-readable format
-2. **Convert Azure DevOps log format** into a format compatible with the parser
+2. **Convert manually copied Azure DevOps raw logs** (only needed when copy/pasting from "View Raw Log")
 3. **Filter and highlight** resources by action (create, update, destroy, replace)
 4. **Display detailed attribute changes** for deeper analysis
 
@@ -87,7 +87,9 @@ Plan:
 
 ### `Convert-AzDevOpsLog.ps1`
 
-Utility script that converts Azure DevOps pipeline log format into a clean format compatible with the parser.
+Utility script that converts manually copied Azure DevOps "View Raw Log" output into a clean format compatible with the parser.
+
+**Note**: This script is only needed when you manually copy/paste logs from Azure DevOps "View Raw Log" view. If you capture Terraform output directly in your pipeline using `terraform plan -no-color > file.log`, the output is already in the correct format and this conversion step is not required.
 
 #### Features
 
@@ -99,7 +101,7 @@ Utility script that converts Azure DevOps pipeline log format into a clean forma
 #### Usage
 
 ```powershell
-# Convert Azure DevOps log to clean format
+# Convert manually copied Azure DevOps raw log to clean format
 .\Convert-AzDevOpsLog.ps1 -InputFile .\tfplan.out -OutputFile .\tfplan_clean.out
 ```
 
@@ -124,33 +126,26 @@ Utility script that converts Azure DevOps pipeline log format into a clean forma
          terraform plan -no-color > terraform_plan.log
    ```
 
-2. **Convert Log Format** (if using Azure DevOps timestamps)
-   ```yaml
-   - task: PowerShell@2
-     displayName: 'Convert Log Format'
-     inputs:
-       filePath: 'scripts/Convert-AzDevOpsLog.ps1'
-       arguments: '-InputFile terraform_plan.log -OutputFile terraform_plan_clean.log'
-   ```
-
-3. **Parse and Display Summary**
+2. **Parse and Display Summary**
    ```yaml
    - task: PowerShell@2
      displayName: 'Display Plan Summary'
      inputs:
        filePath: 'scripts/Get-TerraformPlanReport.ps1'
-       arguments: '-LogFile terraform_plan_clean.log -ShowChanges'
+       arguments: '-LogFile terraform_plan.log -ShowChanges'
    ```
+
+**Note**: The output from `terraform plan -no-color` is already compatible with the parser. You only need `Convert-AzDevOpsLog.ps1` if you manually copy/paste logs from Azure DevOps "View Raw Log" interface.
 
 ### Local Development
 
 ```powershell
-# If you have a local Terraform plan output
+# Direct Terraform plan output (no conversion needed)
 terraform plan -no-color > tfplan.out
 .\Get-TerraformPlanReport.ps1 -LogFile tfplan.out -ShowChanges
 
-# If you captured logs from Azure DevOps
-.\Convert-AzDevOpsLog.ps1 -InputFile .\azdo_tfplan.log -OutputFile .\tfplan_clean.out
+# If you manually copied logs from Azure DevOps "View Raw Log"
+.\Convert-AzDevOpsLog.ps1 -InputFile .\azdo_raw_log.txt -OutputFile .\tfplan_clean.out
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan_clean.out
 ```
 
@@ -158,8 +153,8 @@ terraform plan -no-color > tfplan.out
 
 The repository includes sample files for testing:
 
-- `tfplan.out` - Raw Azure DevOps log with timestamps and ANSI codes
-- `tfplan_clean.out` - Cleaned version suitable for parsing
+- `plan.mine` - Sample manually copied Azure DevOps raw log with timestamps and ANSI codes
+- `plan1.mine` - Cleaned version suitable for parsing (after running Convert-AzDevOpsLog.ps1)
 
 ## Requirements
 

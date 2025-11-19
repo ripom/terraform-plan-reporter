@@ -1,4 +1,30 @@
-# Convert plan.mine format to plan1.mine format by removing timestamps and ANSI codes
+<#
+.SYNOPSIS
+    Converts manually copied Azure DevOps "View Raw Log" output to a clean format.
+
+.DESCRIPTION
+    This script removes Azure DevOps timestamps and ANSI color codes from manually copied raw logs.
+    
+    IMPORTANT: This script is only needed when you manually copy/paste logs from Azure DevOps "View Raw Log" view.
+    If you capture Terraform output directly in your pipeline using 'terraform plan -no-color > file.log',
+    the output is already in the correct format and this conversion is NOT required.
+
+.PARAMETER InputFile
+    Path to the raw Azure DevOps log file (manually copied from "View Raw Log").
+
+.PARAMETER OutputFile
+    Path where the cleaned output will be saved.
+
+.EXAMPLE
+    .\Convert-AzDevOpsLog.ps1 -InputFile .\raw_log.txt -OutputFile .\clean_log.txt
+    Converts a manually copied Azure DevOps raw log to a clean format.
+
+.NOTES
+    Version: 1.0
+    Compatible with PowerShell 5.1 and higher.
+    Only use this when manually copying logs from Azure DevOps UI.
+#>
+
 param(
     [Parameter(Mandatory=$true)]
     [string]$InputFile,

@@ -1,4 +1,44 @@
-# Analyse a Terraform plan log file and list impacted resources
+<#
+.SYNOPSIS
+    Parses Terraform plan output and generates a human-readable report with categorized resource changes.
+
+.DESCRIPTION
+    This script analyzes Terraform plan log files and displays resources grouped by action type (Create, Update, Destroy, Replace).
+    It provides color-coded output for easy visual scanning and optional detailed attribute change display.
+    Works with direct Terraform plan output using 'terraform plan -no-color > file.log'.
+
+.PARAMETER LogFile
+    Path to the Terraform plan output file to analyze.
+
+.PARAMETER ShowChanges
+    Optional switch to display detailed attribute changes for each resource.
+
+.PARAMETER ListCreated
+    Optional switch to show only resources that will be created.
+
+.PARAMETER ListChanged
+    Optional switch to show only resources that will be updated or replaced.
+
+.PARAMETER ListDestroyed
+    Optional switch to show only resources that will be destroyed.
+
+.EXAMPLE
+    .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out
+    Displays a summary of all resource changes.
+
+.EXAMPLE
+    .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ShowChanges
+    Displays resource changes with detailed attribute modifications.
+
+.EXAMPLE
+    .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ListDestroyed
+    Shows only resources that will be destroyed.
+
+.NOTES
+    Version: 1.0
+    Compatible with PowerShell 5.1 and higher.
+#>
+
 param(
     [Parameter(Mandatory=$true)]
     [string]$LogFile,
@@ -27,6 +67,8 @@ $changes = @()
 
 foreach ($line in $lines) {
     # Remove ANSI color codes (both \x1b[...m and [..m formats) and timestamps
+    # Note: Timestamps are only present in manually copied Azure DevOps raw logs
+    # Direct 'terraform plan -no-color' output doesn't have timestamps
     $cleanLine = $line -replace '\x1b\[[0-9;]*m', '' -replace '\[[0-9;]*m', '' -replace '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z\s+', ''
     
     # Match resource declaration lines like "  # azurerm_resource.name will be created"
