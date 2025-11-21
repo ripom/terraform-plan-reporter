@@ -300,14 +300,17 @@ Destroy    azurerm_public_ip              old_ip
   inputs:
     targetType: 'inline'
     script: |
-      terraform plan -no-color > terraform_plan.log
+      terraform plan -no-color | Tee-Object -FilePath terraform_plan.log
 
 - task: PowerShell@2
   displayName: 'Display Plan Summary'
   inputs:
-    filePath: 'scripts/Get-TerraformPlanReport.ps1'
-    arguments: '-LogFile terraform_plan.log'
+    targetType: 'filePath'
+    filePath: '$(System.DefaultWorkingDirectory)/scripts/Get-TerraformPlanReport.ps1'
+    arguments: '-LogFile $(System.DefaultWorkingDirectory)/terraform_plan.log'
 ```
+
+**Note**: Adjust `scripts/` path to match where you store the script in your repository.
 
 ---
 
@@ -320,8 +323,9 @@ Destroy    azurerm_public_ip              old_ip
 - task: PowerShell@2
   displayName: 'Generate Plan Report with Insights'
   inputs:
-    filePath: 'scripts/Get-TerraformPlanReport.ps1'
-    arguments: '-LogFile terraform_plan.log -ShowInsights'
+    targetType: 'filePath'
+    filePath: '$(System.DefaultWorkingDirectory)/scripts/Get-TerraformPlanReport.ps1'
+    arguments: '-LogFile $(System.DefaultWorkingDirectory)/terraform_plan.log -ShowInsights'
 ```
 
 ---
@@ -330,17 +334,26 @@ Destroy    azurerm_public_ip              old_ip
 
 **Situation**: Automatically fail pipeline if resources will be destroyed.
 
-**Pipeline PowerShell**:
-```powershell
-# Generate report
-.\Get-TerraformPlanReport.ps1 -LogFile terraform_plan.log -ListDestroyed > destroy_check.txt
-
-# Check if any resources will be destroyed
-if (Select-String -Path destroy_check.txt -Pattern "DESTROY:" -Quiet) {
-    Write-Host "##vso[task.logissue type=error]Resources will be destroyed!"
-    Write-Host "##vso[task.complete result=Failed;]"
-    exit 1
-}
+**Pipeline YAML**:
+```yaml
+- task: PowerShell@2
+  displayName: 'Check for Destructive Changes'
+  inputs:
+    targetType: 'inline'
+    script: |
+      # Run report and capture output
+      $report = & "$(System.DefaultWorkingDirectory)/scripts/Get-TerraformPlanReport.ps1" `
+        -LogFile "$(System.DefaultWorkingDirectory)/terraform_plan.log" `
+        -ListDestroyed
+      
+      # Check if any resources will be destroyed
+      if ($report -match "DESTROY:") {
+          Write-Host "##vso[task.logissue type=error]Resources will be destroyed!"
+          Write-Host "##vso[task.complete result=Failed;]STOPPED: Destructive changes detected"
+          exit 1
+      } else {
+          Write-Host "✓ No destructive changes detected"
+      }
 ```
 
 ---
@@ -349,19 +362,69 @@ if (Select-String -Path destroy_check.txt -Pattern "DESTROY:" -Quiet) {
 
 **Situation**: Fail pipeline if monthly cost increase exceeds threshold.
 
-**Pipeline PowerShell**:
-```powershell
-# Generate insights
-$output = .\Get-TerraformPlanReport.ps1 -LogFile terraform_plan.log -ShowInsights | Out-String
+**Pipeline YAML**:
+```yaml
+- task: PowerShell@2
+  displayName: 'Cost Impact Gate'
+  inputs:
+    targetType: 'inline'
+    script: |
+      # Generate insights report
+      $report = & "$(System.DefaultWorkingDirectory)/scripts/Get-TerraformPlanReport.ps1" `
+        -LogFile "$(System.DefaultWorkingDirectory)/terraform_plan.log" `
+        -ShowInsights | Out-String
+      
+      # Extract cost increase
+      if ($report -match '\+\$(\d+)/mo') {
+          $increase = [int]$Matches[1]
+          Write-Host "Estimated monthly cost increase: +`$$increase"
+          
+          if ($increase -gt 500) {
+              Write-Host "##vso[task.logissue type=warning]High cost increase detected: +`$$increase/month"
+              Write-Host "##vso[task.logissue type=warning]Manual approval required for increases over `$500/month"
+              # Optionally fail the pipeline
+              # exit 1
+          }
+      }
+```
 
-# Check for significant cost increase
-if ($output -match "Significant Increase.*\+\$(\d+)") {
-    $increase = [int]$matches[1]
-    if ($increase -gt 500) {
-        Write-Host "##vso[task.logissue type=warning]Monthly cost increase: +`$$increase"
-        Write-Host "Manual approval required for cost increase over `$500/month"
-    }
-}
+---
+
+### Scenario 17: GitHub Actions Pipeline
+
+**Situation**: Use the script in GitHub Actions workflow.
+
+**Workflow YAML** (`.github/workflows/terraform.yml`):
+```yaml
+name: Terraform Plan Review
+
+on: [pull_request]
+
+jobs:
+  terraform-plan:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v2
+    
+    - name: Terraform Plan
+      run: |
+        terraform init
+        terraform plan -no-color | tee terraform_plan.log
+    
+    - name: Generate Plan Report
+      shell: pwsh
+      run: |
+        ./scripts/Get-TerraformPlanReport.ps1 -LogFile terraform_plan.log -ShowInsights
+    
+    - name: Upload Plan Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: terraform-plan-report
+        path: terraform_plan.log
 ```
 
 ---
