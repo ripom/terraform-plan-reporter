@@ -226,12 +226,26 @@ $knowledgeBase = @{
     # Governance and compliance indicators
     GovernanceIndicators = @{
         Tags = @('tags', 'tag =', 'cost_center', 'environment', 'owner', 'project', 'compliance')
-        Naming = @('name =', 'naming_convention', 'prefix', 'suffix')
-        Policies = @('policy', 'compliance', 'audit', 'diagnostic_setting', 'log_analytics', 'monitoring')
+        # Naming convention patterns to detect proper naming standards
+        NamingPatterns = @{
+            # Azure resource prefixes (Microsoft CAF recommended)
+            AzurePrefixes = @('rg-', 'vnet-', 'snet-', 'nsg-', 'vm-', 'nic-', 'pip-', 'st-', 'kv-', 'law-', 'agw-', 'fw-', 'vpn-', 'bas-', 'aks-', 'sql-', 'db-', 'app-', 'func-', 'pe-', 'pls-', 'pdns-')
+            # AWS resource prefixes
+            AwsPrefixes = @('vpc-', 'subnet-', 'sg-', 'ec2-', 'rds-', 's3-', 'lambda-', 'eks-', 'ecs-', 'alb-', 'nlb-', 'asg-')
+            # GCP resource prefixes
+            GcpPrefixes = @('vpc-', 'subnet-', 'vm-', 'gke-', 'sql-', 'bucket-', 'function-', 'lb-')
+            # Environment indicators
+            Environments = @('-prod-', '-dev-', '-test-', '-uat-', '-staging-', '-qa-', '-demo-', '-sandbox-', '-prod$', '-dev$', '-test$', '-uat$', '-staging$', '-qa$', '-demo$', '-sandbox$', '^prod-', '^dev-', '^test-', '^uat-', '^staging-', '^qa-', '^demo-', '^sandbox-')
+            # Region indicators
+            Regions = @('-eastus-', '-westus-', '-centralus-', '-northeurope-', '-westeurope-', '-southeastasia-', '-us-east-1-', '-us-west-2-', '-eu-west-1-', '-ap-southeast-1-')
+            # Numbered instances
+            NumberedInstances = @('-\d{2,3}$', '-\d{2,3}-', '-v\d+$')
+        }
+        Policies = @('azurerm_policy_assignment', 'azurerm_policy_definition', 'azurerm_monitor_diagnostic_setting', 'azurerm_log_analytics_workspace', 'azurerm_monitor_action_group', 'azurerm_monitor_metric_alert', 'aws_config_rule', 'aws_cloudwatch_log_group', 'google_logging_project_sink')
         Backup = @('backup', 'retention', 'geo_redundant', 'replication')
         Locks = @('azurerm_management_lock', 'aws_resourcegroups_resource', 'can_not_delete', 'read_only_lock', 'delete_lock')
         RBAC = @('role_assignment', 'role_definition', 'iam_policy', 'iam_role', 'principal_id', 'scope_id')
-        NetworkIsolation = @('private_endpoint', 'service_endpoint', 'private_link_service', 'network_acl', 'private_dns_zone_group')
+        NetworkIsolation = @('azurerm_private_endpoint', 'aws_vpc_endpoint', 'google_compute_global_forwarding_rule', 'azurerm_private_link_service', 'azurerm_app_service_virtual_network_swift_connection', 'aws_vpc_endpoint_service')
         AuditLogging = @('log_analytics_workspace', 'diagnostic_setting', 'activity_log_alert', 'log_retention_days')
         ComplianceFrameworks = @('policy_assignment', 'policy_definition', 'aws_config_rule', 'security_center_subscription', 'defender_for_cloud')
         CostManagement = @('consumption_budget', 'cost_management_export', 'aws_budgets_budget', 'spending_limit')
@@ -287,8 +301,8 @@ foreach ($line in $lines) {
         $changes = @()
         $captureChanges = $true
     }
-    # Capture all content within the resource block when ShowChanges is enabled
-    elseif ($ShowChanges -and $captureChanges) {
+    # Capture all content within the resource block (for ShowChanges or ShowInsights)
+    elseif (($ShowChanges -or $ShowInsights) -and $captureChanges) {
         # Stop capturing when we hit another resource or end of resource block
         if ($cleanLine -match '^\s*#\s+' -or $cleanLine -match '^\s*$') {
             # Don't stop on comment lines within the resource
@@ -817,30 +831,101 @@ if ($results.Count -eq 0) {
             
             # === GOVERNANCE ANALYSIS ===
             $tagMatch = $false
-            foreach ($tag in $knowledgeBase.GovernanceIndicators.Tags) {
-                if ($changesText -match [regex]::Escape($tag) -or $item.Resource -match $tag) {
-                    if (-not $tagMatch) {
-                        $insights.Governance.Tags += "$($item.Resource) - Tags modified"
-                        $tagMatch = $true
+            # Check if tags exist in the resource (look for "tags" attribute)
+            if ($changesText -match '(?i)\btags\s*=') {
+                $insights.Governance.Tags += "$($item.Resource) - Tags configured"
+                $tagMatch = $true
+            }
+            # Also check for tag-related keywords
+            if (-not $tagMatch) {
+                foreach ($tag in $knowledgeBase.GovernanceIndicators.Tags) {
+                    if ($changesText -match "(?i)$([regex]::Escape($tag))" -or $item.Resource -match "(?i)$tag") {
+                        if (-not $tagMatch) {
+                            $insights.Governance.Tags += "$($item.Resource) - Tags modified"
+                            $tagMatch = $true
+                        }
+                        break
                     }
-                    break
                 }
             }
             
+            # Check naming conventions by analyzing the resource name itself
             $namingMatch = $false
-            foreach ($naming in $knowledgeBase.GovernanceIndicators.Naming) {
-                if ($changesText -match [regex]::Escape($naming)) {
-                    if (-not $namingMatch) {
-                        $insights.Governance.Naming += "$($item.Resource) - Naming convention applied"
+            $resourceNamePart = if ($item.Resource -match '\.(.+)$') { $matches[1] } else { $item.Resource }
+            $namingReasons = @()
+            
+            # Check for Azure prefixes
+            foreach ($prefix in $knowledgeBase.GovernanceIndicators.NamingPatterns.AzurePrefixes) {
+                if ($resourceNamePart -match "^$([regex]::Escape($prefix))") {
+                    $namingReasons += "Azure CAF prefix ($prefix)"
+                    $namingMatch = $true
+                }
+            }
+            
+            # Check for AWS prefixes
+            foreach ($prefix in $knowledgeBase.GovernanceIndicators.NamingPatterns.AwsPrefixes) {
+                if ($resourceNamePart -match "^$([regex]::Escape($prefix))") {
+                    $namingReasons += "AWS prefix ($prefix)"
+                    $namingMatch = $true
+                }
+            }
+            
+            # Check for GCP prefixes
+            foreach ($prefix in $knowledgeBase.GovernanceIndicators.NamingPatterns.GcpPrefixes) {
+                if ($resourceNamePart -match "^$([regex]::Escape($prefix))") {
+                    $namingReasons += "GCP prefix ($prefix)"
+                    $namingMatch = $true
+                }
+            }
+            
+            # Check for environment indicators
+            foreach ($env in $knowledgeBase.GovernanceIndicators.NamingPatterns.Environments) {
+                if ($resourceNamePart -match $env) {
+                    $envName = $env -replace '[\^\$\-]', ''
+                    if (-not ($namingReasons -like "*environment*")) {
+                        $namingReasons += "environment indicator ($envName)"
                         $namingMatch = $true
                     }
-                    break
                 }
+            }
+            
+            # Check for region indicators
+            foreach ($region in $knowledgeBase.GovernanceIndicators.NamingPatterns.Regions) {
+                if ($resourceNamePart -match $region) {
+                    $regionName = $region -replace '[\-]', ''
+                    if (-not ($namingReasons -like "*region*")) {
+                        $namingReasons += "region indicator ($regionName)"
+                        $namingMatch = $true
+                    }
+                }
+            }
+            
+            # Check for numbered instances
+            foreach ($pattern in $knowledgeBase.GovernanceIndicators.NamingPatterns.NumberedInstances) {
+                if ($resourceNamePart -match $pattern) {
+                    if (-not ($namingReasons -like "*numbered*")) {
+                        $namingReasons += "numbered instance"
+                        $namingMatch = $true
+                    }
+                }
+            }
+            
+            # Check for multi-segment naming (e.g., prefix-purpose-env-region-number)
+            $segments = $resourceNamePart -split '-'
+            if ($segments.Count -ge 4 -and -not $namingMatch) {
+                $namingReasons += "multi-segment structure ($($segments.Count) parts)"
+                $namingMatch = $true
+            }
+            
+            if ($namingMatch) {
+                $reasonText = $namingReasons -join ', '
+                $insights.Governance.Naming += "$($item.Resource) - Follows naming convention: $reasonText"
             }
             
             $policyMatch = $false
             foreach ($policy in $knowledgeBase.GovernanceIndicators.Policies) {
-                if ($changesText -match [regex]::Escape($policy) -or $item.Resource -match $policy) {
+                # Only match resource type/name, not content
+                if ($item.Resource -match $policy) {
                     if (-not $policyMatch) {
                         $insights.Governance.Policies += "$($item.Resource) - Policy/Compliance related"
                         $policyMatch = $true
@@ -884,7 +969,8 @@ if ($results.Count -eq 0) {
             
             $networkMatch = $false
             foreach ($network in $knowledgeBase.GovernanceIndicators.NetworkIsolation) {
-                if ($changesText -match [regex]::Escape($network) -or $item.Resource -match $network) {
+                # Only match resource type/name, not content
+                if ($item.Resource -match $network) {
                     if (-not $networkMatch) {
                         $insights.Governance.NetworkIsolation += "$($item.Resource) - Network isolation applied"
                         $networkMatch = $true
@@ -1049,14 +1135,17 @@ if ($results.Count -eq 0) {
         if ($totalGovItems -gt 0) {
             if ($insights.Governance.Tags.Count -gt 0) {
                 Write-Host "   🏷️  Tags ($($insights.Governance.Tags.Count)):" -ForegroundColor Blue
-                $insights.Governance.Tags | Select-Object -First 3 | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkCyan }
-                if ($insights.Governance.Tags.Count -gt 3) { Write-Host "   • ... and $($insights.Governance.Tags.Count - 3) more" -ForegroundColor DarkGray }
+                $insights.Governance.Tags | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkBlue }
+                Write-Host ""
+            }
+            if ($insights.Governance.Naming.Count -gt 0) {
+                Write-Host "   📝 Naming Conventions ($($insights.Governance.Naming.Count)):" -ForegroundColor Cyan
+                $insights.Governance.Naming | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkCyan }
                 Write-Host ""
             }
             if ($insights.Governance.Policies.Count -gt 0) {
                 Write-Host "   📜 Policies & Monitoring ($($insights.Governance.Policies.Count)):" -ForegroundColor Magenta
-                $insights.Governance.Policies | Select-Object -First 3 | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkMagenta }
-                if ($insights.Governance.Policies.Count -gt 3) { Write-Host "   • ... and $($insights.Governance.Policies.Count - 3) more" -ForegroundColor DarkGray }
+                $insights.Governance.Policies | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkMagenta }
                 Write-Host ""
             }
             if ($insights.Governance.Backup.Count -gt 0) {
@@ -1071,20 +1160,17 @@ if ($results.Count -eq 0) {
             }
             if ($insights.Governance.RBAC.Count -gt 0) {
                 Write-Host "   👤 RBAC/IAM ($($insights.Governance.RBAC.Count)):" -ForegroundColor Cyan
-                $insights.Governance.RBAC | Select-Object -First 3 | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkCyan }
-                if ($insights.Governance.RBAC.Count -gt 3) { Write-Host "   • ... and $($insights.Governance.RBAC.Count - 3) more" -ForegroundColor DarkGray }
+                $insights.Governance.RBAC | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkCyan }
                 Write-Host ""
             }
             if ($insights.Governance.NetworkIsolation.Count -gt 0) {
                 Write-Host "   🌐 Network Isolation ($($insights.Governance.NetworkIsolation.Count)):" -ForegroundColor Blue
-                $insights.Governance.NetworkIsolation | Select-Object -First 3 | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkBlue }
-                if ($insights.Governance.NetworkIsolation.Count -gt 3) { Write-Host "   • ... and $($insights.Governance.NetworkIsolation.Count - 3) more" -ForegroundColor DarkGray }
+                $insights.Governance.NetworkIsolation | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkBlue }
                 Write-Host ""
             }
             if ($insights.Governance.AuditLogging.Count -gt 0) {
                 Write-Host "   📊 Audit Logging ($($insights.Governance.AuditLogging.Count)):" -ForegroundColor Magenta
-                $insights.Governance.AuditLogging | Select-Object -First 3 | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkMagenta }
-                if ($insights.Governance.AuditLogging.Count -gt 3) { Write-Host "   • ... and $($insights.Governance.AuditLogging.Count - 3) more" -ForegroundColor DarkGray }
+                $insights.Governance.AuditLogging | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkMagenta }
                 Write-Host ""
             }
             if ($insights.Governance.ComplianceFrameworks.Count -gt 0) {
