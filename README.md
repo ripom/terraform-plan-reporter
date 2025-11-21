@@ -28,6 +28,10 @@ Main script that parses Terraform plan output and generates a human-readable rep
 - ✓ Filtering by resource type (supports wildcards)
 - ✓ Table view for listing all resources
 - ✓ Intelligent insights: cost estimation, security impact, governance analysis
+  - Cost Impact: Categorizes resources as High/Medium/Low cost with monthly estimates
+  - Security Analysis: Detects security-sensitive changes and trends
+  - Governance: Analyzes tags, naming conventions, policies, backup, RBAC, network isolation, and more
+  - Naming Convention Detection: Validates Azure CAF, AWS, and GCP naming standards
 - ✓ Automatic ANSI color code and timestamp removal
 - ✓ Summary statistics at the end
 
@@ -72,6 +76,77 @@ Main script that parses Terraform plan output and generates a human-readable rep
 
 # Advanced: Show created compute resources in production with cost insights
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -Category Compute -ResourceName "*prod*" -ListCreated -ShowInsights
+
+# View governance compliance for all resources
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ShowInsights
+
+# Analyze naming conventions for specific resource types
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ResourceType "azurerm_resource_group" -ShowInsights
+```
+
+#### Intelligent Insights Features
+
+When using the `-ShowInsights` switch, the script provides comprehensive analysis:
+
+**Cost Impact Analysis**
+- Categorizes resources as High/Medium/Low cost impact
+- Provides approximate monthly cost estimates in USD
+- Shows overall cost trend (increase/decrease)
+- Example output:
+  ```
+  💰 COST IMPACT ANALYSIS
+     Overall Impact: Moderate Increase 💰💰 (+$450/mo)
+     High Cost Resources (3):
+     • azurerm_virtual_machine.vm_prod [+High] Standard_D4s_v3 ≈ $140/mo
+  ```
+
+**Security Impact Analysis**
+- Detects security-sensitive attribute changes
+- Identifies improvements vs. risks
+- Tracks changes to encryption, access controls, network security
+- Example output:
+  ```
+  🔒 SECURITY IMPACT ANALYSIS
+     Security Trend: Improved ✓
+     ✓ Security Improvements (2):
+     • azurerm_storage_account.storage - Improved: enable_https_traffic_only
+  ```
+
+**Governance & Compliance Analysis**
+- **Tags**: Detects resources with tags configured
+- **Naming Conventions**: Validates against best practices
+  - Azure CAF prefixes (rg-, vnet-, vm-, kv-, etc.)
+  - AWS prefixes (vpc-, ec2-, s3-, lambda-, etc.)
+  - GCP prefixes (vpc-, vm-, gke-, bucket-, etc.)
+  - Environment indicators (-prod, -dev, -test, -staging, etc.)
+  - Region indicators (-eastus, -us-west-2, -eu-west-1, etc.)
+  - Numbered instances (-01, -02, -v1, etc.)
+  - Multi-segment structure (4+ parts)
+- **Policies & Monitoring**: Azure Policy, AWS Config, monitoring resources
+- **Backup & Retention**: Backup configurations, retention policies
+- **Resource Locks**: Management locks for production resources
+- **RBAC/IAM**: Role assignments and identity configurations
+- **Network Isolation**: Private endpoints, VNet integration
+- **Audit Logging**: Diagnostic settings, log analytics
+- **Compliance Frameworks**: Security center, compliance policies
+- **Cost Management**: Budgets, cost exports
+
+Example output:
+```
+📋 GOVERNANCE & COMPLIANCE ANALYSIS
+   Governance Score: 8/12
+   Breakdown:
+   • Tags: ✓ +1
+   • Naming: ✓ +1
+   • Policies/Monitoring: ✓ +1
+   • Network Isolation: ✓ +2
+
+   🏷️  Tags (144):
+   • azurerm_resource_group.rg_prod - Tags configured
+   
+   📝 Naming Conventions (87):
+   • azurerm_resource_group.rg-myapp-prod-eastus - Follows naming convention: Azure CAF prefix (rg-), environment indicator (prod), region indicator (eastus), multi-segment structure (5 parts)
+   • azurerm_virtual_network.vnet-hub-prod - Follows naming convention: Azure CAF prefix (vnet-), environment indicator (prod)
 ```
 
 #### Parameters
