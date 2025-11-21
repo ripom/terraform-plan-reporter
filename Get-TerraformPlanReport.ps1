@@ -105,47 +105,44 @@ foreach ($line in $lines) {
         $changes = @()
         $captureChanges = $true
     }
-    # Capture attribute changes if we're tracking a resource
-    elseif ($ShowChanges -and $captureChanges -and $cleanLine -match '^\s+([+~-])\s+(.+)') {
-        $changeType = $matches[1]
-        $changeDetail = $matches[2].Trim()
-        
-        # Skip unwanted lines
-        if ($changeDetail -match '^(resource|data)\s+"' -or
-            $changeDetail -match '^\(known after apply\)' -or
-            $changeDetail -match '^#' -or
-            $changeDetail -match '^[\{\}]$' -or
-            $changeDetail -match '^\[$' -or
-            $changeDetail -match '^\]$' -or
-            $changeDetail -eq '') {
-            continue
+    # Capture all content within the resource block when ShowChanges is enabled
+    elseif ($ShowChanges -and $captureChanges) {
+        # Stop capturing when we hit another resource or end of resource block
+        if ($cleanLine -match '^\s*#\s+' -or $cleanLine -match '^\s*$') {
+            # Don't stop on comment lines within the resource
+            if ($cleanLine -match '^\s*#\s+\(.*\)') {
+                continue
+            }
+            # Empty line might signal end of resource block in some cases
+            # but we'll continue to be safe
         }
         
-        # Parse the attribute change
-        if ($changeDetail -match '^(.+?)\s*=\s*(.+)$') {
-            $attribute = $matches[1].Trim()
-            $value = $matches[2].Trim()
+        # Capture the entire line with its change indicator
+        if ($cleanLine -match '^\s+([+~-])\s+(.+)') {
+            $changeType = $matches[1]
+            $changeDetail = $matches[2]
             
-            # Skip complex nested structures
-            if ($value -match '^\{' -or $value -match '^\[') {
+            # Skip lines that start with "resource", "data", or "body"
+            if ($changeDetail -match '^(resource|data)\s+"' -or $changeDetail -match '^body\s+') {
                 continue
             }
             
-            # Handle value changes (old -> new)
-            if ($value -match '^"?([^"]+)"?\s*->\s*"?([^"]+)"?$') {
-                $oldVal = $matches[1]
-                $newVal = $matches[2]
-                $changes += "      ${attribute}: $oldVal → $newVal"
-            }
-            else {
-                $changes += "      + ${attribute} = $value"
+            # Store the change with its type for color coding later
+            $changes += [PSCustomObject]@{
+                Type = $changeType
+                Line = "`e[3m    $changeType $changeDetail`e[23m"  # ANSI escape codes for italic
             }
         }
-        elseif ($changeDetail -match '^"([^"]+)"') {
-            # Array/list element
-            $val = $matches[1]
-            $symbol = if ($changeType -eq '+') { '+' } elseif ($changeType -eq '-') { '-' } else { '~' }
-            $changes += "      $symbol $val"
+        # Also capture lines without change indicators (context lines)
+        elseif ($cleanLine -match '^\s{2,}(.+)' -and $cleanLine -notmatch '^\s*#' -and $cleanLine.Trim() -ne '') {
+            $content = $matches[1]
+            # Skip "body" and resource declaration lines
+            if ($content -notmatch '^(resource|data|body)\s+') {
+                $changes += [PSCustomObject]@{
+                    Type = ' '
+                    Line = "`e[3m      $content`e[23m"  # ANSI escape codes for italic
+                }
+            }
         }
     }
 }
@@ -206,7 +203,14 @@ if ($results.Count -eq 0) {
             Write-Host "  • $($item.Resource)" -ForegroundColor $color
             if ($ShowChanges -and $item.Changes.Count -gt 0) {
                 foreach ($change in $item.Changes) {
-                    Write-Host $change -ForegroundColor DarkGray
+                    # Color code based on change type
+                    $changeColor = switch ($change.Type) {
+                        '+' { "DarkGreen" }   # Additions in dark green
+                        '-' { "DarkRed" }     # Deletions in dark red
+                        '~' { "DarkYellow" }  # Changes in dark yellow
+                        default { "Gray" }    # Context lines in gray
+                    }
+                    Write-Host $change.Line -ForegroundColor $changeColor
                 }
             }
         }
