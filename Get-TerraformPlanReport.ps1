@@ -25,8 +25,20 @@
 .PARAMETER ListReplaced
     Optional switch to show only resources that will be replaced.
 
+.PARAMETER TableAll
+    Optional switch to display all resources in a table format with ResourceName, ResourceType, and Action.
+
 .PARAMETER ShowInsights
     Optional switch to display intelligent analysis of cost, security, and governance impacts.
+
+.PARAMETER Category
+    Optional filter to show only resources in specific categories (Compute, Storage, Network, Database, Security, Monitoring).
+
+.PARAMETER ResourceName
+    Optional filter to show only resources matching a name pattern (supports wildcards).
+
+.PARAMETER ResourceType
+    Optional filter to show only resources of specific type (e.g., azurerm_virtual_machine, supports wildcards).
 
 .EXAMPLE
     .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out
@@ -39,6 +51,26 @@
 .EXAMPLE
     .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ListDestroyed
     Shows only resources that will be destroyed.
+
+.EXAMPLE
+    .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -Category Compute -ShowInsights
+    Shows only compute resources with cost and security insights.
+
+.EXAMPLE
+    .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ResourceName "*prod*" -ListCreated
+    Shows only resources with 'prod' in the name that will be created.
+
+.EXAMPLE
+    .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ResourceType "azurerm_virtual_machine" -ShowInsights
+    Shows only virtual machine resources with insights.
+
+.EXAMPLE
+    .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ResourceType "*storage*" -Category Storage
+    Shows only storage-related resource types.
+
+.EXAMPLE
+    .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -TableAll
+    Displays all resources in a table with ResourceName, ResourceType, and Action columns.
 
 .NOTES
     Version: 1.0
@@ -65,7 +97,20 @@ param(
     [switch]$ListReplaced,
     
     [Parameter(Mandatory=$false)]
-    [switch]$ShowInsights
+    [switch]$TableAll,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$ShowInsights,
+    
+    [Parameter(Mandatory=$false)]
+    [ValidateSet('Compute', 'Storage', 'Network', 'Database', 'Security', 'Monitoring', 'All')]
+    [string]$Category,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$ResourceName,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$ResourceType
 )
 
 # Knowledge base for intelligent insights
@@ -148,6 +193,36 @@ $knowledgeBase = @{
         NegativeKeywords = @('disabled', 'false', 'none', '0.0.0.0/0', '*', 'public', 'allow_all')
     }
     
+    # Resource category mapping
+    Categories = @{
+        Compute = @(
+            'virtual_machine', 'instance', 'kubernetes', 'container', 'function_app', 'app_service',
+            'batch', 'vm_scale_set', 'aks', 'eks', 'gke', 'ecs', 'lambda', 'compute_instance'
+        )
+        Storage = @(
+            'storage_account', 's3_bucket', 'disk', 'managed_disk', 'blob', 'file_share',
+            'storage_bucket', 'ebs_volume', 'persistent_disk'
+        )
+        Network = @(
+            'virtual_network', 'subnet', 'network_security_group', 'firewall', 'load_balancer',
+            'application_gateway', 'vpn', 'express_route', 'nat_gateway', 'public_ip',
+            'private_endpoint', 'vpc', 'security_group', 'route_table', 'peering'
+        )
+        Database = @(
+            'sql_database', 'mysql', 'postgresql', 'cosmosdb', 'redis', 'mariadb',
+            'rds_instance', 'dynamodb', 'cloud_sql', 'documentdb'
+        )
+        Security = @(
+            'key_vault', 'certificate', 'secret', 'identity', 'role_assignment',
+            'policy_assignment', 'security_center', 'defender', 'kms', 'secrets_manager',
+            'iam_role', 'iam_policy'
+        )
+        Monitoring = @(
+            'log_analytics', 'application_insights', 'monitor', 'diagnostic', 'alert',
+            'cloudwatch', 'stackdriver', 'metric'
+        )
+    }
+    
     # Governance and compliance indicators
     GovernanceIndicators = @{
         Tags = @('tags', 'tag =', 'cost_center', 'environment', 'owner', 'project', 'compliance')
@@ -193,7 +268,7 @@ foreach ($line in $lines) {
             }
         }
         
-        $resourceName = $matches[1]
+        $tfResourceName = $matches[1]
         $action = $matches[3]  # The action is now in match group 3
         
         # Map action to shorter form
@@ -206,7 +281,7 @@ foreach ($line in $lines) {
         }
         
         $currentResource = @{
-            Resource = $resourceName
+            Resource = $tfResourceName
             Action   = $actionType
         }
         $changes = @()
@@ -266,8 +341,164 @@ if ($currentResource) {
 if ($results.Count -eq 0) {
     Write-Host "No resources found in plan file: $LogFile" -ForegroundColor Yellow
 } else {
+    # If TableAll is specified, display table and exit
+    if ($TableAll) {
+        # Apply filters first
+        $filteredResults = $results
+        
+        # Filter by Category
+        if ($Category -and $Category -ne 'All') {
+            $categoryPatterns = $knowledgeBase.Categories[$Category]
+            $filteredResults = $filteredResults | Where-Object {
+                $resourceType = ($_.Resource -split '\.', 2)[0]
+                $match = $false
+                foreach ($pattern in $categoryPatterns) {
+                    if ($resourceType -match $pattern) {
+                        $match = $true
+                        break
+                    }
+                }
+                $match
+            }
+        }
+        
+        # Filter by ResourceName (supports wildcards)
+        if ($ResourceName) {
+            $filteredResults = $filteredResults | Where-Object {
+                $_.Resource -like $ResourceName
+            }
+        }
+        
+        # Filter by ResourceType (supports wildcards)
+        if ($ResourceType) {
+            $filteredResults = $filteredResults | Where-Object {
+                $resType = ($_.Resource -split '\.', 2)[0]
+                $resType -like $ResourceType
+            }
+        }
+        
+        # Filter by Action (based on List switches)
+        if ($ListCreated -or $ListChanged -or $ListDestroyed -or $ListReplaced) {
+            $allowedActions = @()
+            if ($ListCreated) { $allowedActions += "Create" }
+            if ($ListChanged) { $allowedActions += "Update" }
+            if ($ListDestroyed) { $allowedActions += "Destroy" }
+            if ($ListReplaced) { $allowedActions += "Replace" }
+            
+            $filteredResults = $filteredResults | Where-Object {
+                $allowedActions -contains $_.Action
+            }
+        }
+        
+        if ($filteredResults.Count -eq 0) {
+            Write-Host "No resources match the specified filters" -ForegroundColor Yellow
+            if ($Category) { Write-Host "  Category: $Category" -ForegroundColor Gray }
+            if ($ResourceName) { Write-Host "  ResourceName: $ResourceName" -ForegroundColor Gray }
+            if ($ResourceType) { Write-Host "  ResourceType: $ResourceType" -ForegroundColor Gray }
+            return
+        }
+        
+        Write-Host "\n================================================================================\n" -ForegroundColor Cyan
+        Write-Host "ALL RESOURCES" -ForegroundColor Cyan
+        
+        # Show active filters
+        if ($Category -or $ResourceName -or $ResourceType) {
+            Write-Host "\nActive Filters:" -ForegroundColor Cyan
+            if ($Category) { Write-Host "  Category: $Category" -ForegroundColor Gray }
+            if ($ResourceName) { Write-Host "  ResourceName: $ResourceName" -ForegroundColor Gray }
+            if ($ResourceType) { Write-Host "  ResourceType: $ResourceType" -ForegroundColor Gray }
+        }
+        
+        Write-Host "\n================================================================================\n" -ForegroundColor Cyan
+        
+        # Create table data
+        $tableData = $filteredResults | ForEach-Object {
+            $parts = $_.Resource -split '\.',2
+            [PSCustomObject]@{
+                Action = $_.Action
+                ResourceType = $parts[0]
+                ResourceName = if ($parts.Count -gt 1) { $parts[1] } else { $_.Resource }
+            }
+        }
+        
+        # Display header
+        Write-Host ("{0,-10} {1,-50} {2}" -f "Action", "ResourceType", "ResourceName") -ForegroundColor Cyan
+        Write-Host ("{0,-10} {1,-50} {2}" -f "------", "------------", "------------") -ForegroundColor Cyan
+        
+        # Display as table with color-coded actions
+        $tableData | ForEach-Object {
+            $actionColor = switch ($_.Action) {
+                "Create" { "Green" }
+                "Update" { "Yellow" }
+                "Destroy" { "Red" }
+                "Replace" { "Magenta" }
+                default { "White" }
+            }
+            
+            Write-Host ("{0,-10} {1,-50} {2}" -f $_.Action, $_.ResourceType, $_.ResourceName) -ForegroundColor $actionColor
+        }
+        
+        # Display summary
+        Write-Host "\n================================================================================\n" -ForegroundColor Cyan
+        $createCount = ($filteredResults | Where-Object { $_.Action -eq "Create" }).Count
+        $updateCount = ($filteredResults | Where-Object { $_.Action -eq "Update" }).Count
+        $destroyCount = ($filteredResults | Where-Object { $_.Action -eq "Destroy" }).Count
+        $replaceCount = ($filteredResults | Where-Object { $_.Action -eq "Replace" }).Count
+        
+        Write-Host "Total: $($filteredResults.Count) resources" -ForegroundColor White
+        if ($createCount -gt 0) { Write-Host "  $createCount to create" -ForegroundColor Green }
+        if ($updateCount -gt 0) { Write-Host "  $updateCount to update" -ForegroundColor Yellow }
+        if ($destroyCount -gt 0) { Write-Host "  $destroyCount to destroy" -ForegroundColor Red }
+        if ($replaceCount -gt 0) { Write-Host "  $replaceCount to replace" -ForegroundColor Magenta }
+        Write-Host ""
+        
+        return
+    }
+    
+    # Apply filters
+    $filteredResults = $results
+    
+    # Filter by Category
+    if ($Category -and $Category -ne 'All') {
+        $categoryPatterns = $knowledgeBase.Categories[$Category]
+        $filteredResults = $filteredResults | Where-Object {
+            $resourceType = ($_.Resource -split '\.')[0]
+            $match = $false
+            foreach ($pattern in $categoryPatterns) {
+                if ($resourceType -match $pattern) {
+                    $match = $true
+                    break
+                }
+            }
+            $match
+        }
+    }
+    
+    # Filter by ResourceName (supports wildcards)
+    if ($ResourceName) {
+        $filteredResults = $filteredResults | Where-Object {
+            $_.Resource -like $ResourceName
+        }
+    }
+    
+    # Filter by ResourceType (supports wildcards)
+    if ($ResourceType) {
+        $filteredResults = $filteredResults | Where-Object {
+            $resType = ($_.Resource -split '\.')[0]
+            $resType -like $ResourceType
+        }
+    }
+    
+    if ($filteredResults.Count -eq 0) {
+        Write-Host "No resources match the specified filters" -ForegroundColor Yellow
+        if ($Category) { Write-Host "  Category: $Category" -ForegroundColor Gray }
+        if ($ResourceName) { Write-Host "  ResourceName: $ResourceName" -ForegroundColor Gray }
+        if ($ResourceType) { Write-Host "  ResourceType: $ResourceType" -ForegroundColor Gray }
+        return
+    }
+    
     # Group by action
-    $grouped = $results | Group-Object -Property Action
+    $grouped = $filteredResults | Group-Object -Property Action
     
     # Determine which actions to display based on switches
     $actionsToShow = @()
@@ -281,7 +512,16 @@ if ($results.Count -eq 0) {
         $actionsToShow = @("Create", "Update", "Destroy", "Replace")
     }
     
-    Write-Host "`n================================================================================`n" -ForegroundColor Cyan
+    Write-Host "\n================================================================================\n" -ForegroundColor Cyan
+    
+    # Show active filters
+    if ($Category -or $ResourceName -or $ResourceType) {
+        Write-Host "Active Filters:" -ForegroundColor Cyan
+        if ($Category) { Write-Host "  Category: $Category" -ForegroundColor Gray }
+        if ($ResourceName) { Write-Host "  ResourceName: $ResourceName" -ForegroundColor Gray }
+        if ($ResourceType) { Write-Host "  ResourceType: $ResourceType" -ForegroundColor Gray }
+        Write-Host ""
+    }
     
     foreach ($group in $grouped) {
         # Skip this group if it's not in the actions to show
@@ -389,8 +629,9 @@ if ($results.Count -eq 0) {
             }
         }
         
-        # Analyze each resource
-        foreach ($item in $results) {
+        # Analyze each resource (using filtered results if filters are active)
+        $resourcesToAnalyze = if ($Category -or $ResourceName -or $ResourceType) { $filteredResults } else { $results }
+        foreach ($item in $resourcesToAnalyze) {
             $resourceType = ($item.Resource -split '\.')[0]
             $changesText = ($item.Changes | ForEach-Object { $_.Line }) -join ' '
             

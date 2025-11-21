@@ -21,8 +21,13 @@ Main script that parses Terraform plan output and generates a human-readable rep
 
 - ✓ Categorizes resources by action type (Create, Update, Destroy, Replace)
 - ✓ Color-coded output for easy visual scanning
-- ✓ Optional detailed attribute change display
+- ✓ Optional detailed attribute change display with color-coded diff
 - ✓ Filtering by specific action types
+- ✓ Filtering by resource category (Compute, Storage, Network, Database, Security, Monitoring)
+- ✓ Filtering by resource name pattern (supports wildcards)
+- ✓ Filtering by resource type (supports wildcards)
+- ✓ Table view for listing all resources
+- ✓ Intelligent insights: cost estimation, security impact, governance analysis
 - ✓ Automatic ANSI color code and timestamp removal
 - ✓ Summary statistics at the end
 
@@ -32,8 +37,14 @@ Main script that parses Terraform plan output and generates a human-readable rep
 # Basic usage - show all resource changes
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out
 
-# Show detailed attribute changes
+# Show detailed attribute changes with color-coded diff
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ShowChanges
+
+# Show intelligent insights (cost, security, governance)
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ShowInsights
+
+# Display all resources in a table format
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -TableAll
 
 # Filter to show only resources being created
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ListCreated
@@ -44,8 +55,23 @@ Main script that parses Terraform plan output and generates a human-readable rep
 # Filter to show only resources being destroyed
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ListDestroyed
 
-# Combine filters (show created and destroyed resources)
-.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ListCreated -ListDestroyed
+# Filter to show only resources being replaced
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ListReplaced
+
+# Filter by resource category
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -Category Compute -ShowInsights
+
+# Filter by resource name pattern (supports wildcards)
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ResourceName "*prod*" -ListCreated
+
+# Filter by resource type (supports wildcards)
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ResourceType "azurerm_virtual_machine" -ShowInsights
+
+# Combine multiple filters
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -Category Storage -ResourceType "*storage_account*" -ListCreated -TableAll
+
+# Advanced: Show created compute resources in production with cost insights
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -Category Compute -ResourceName "*prod*" -ListCreated -ShowInsights
 ```
 
 #### Parameters
@@ -53,10 +79,16 @@ Main script that parses Terraform plan output and generates a human-readable rep
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `LogFile` | String | Yes | Path to the Terraform plan output file |
-| `ShowChanges` | Switch | No | Display detailed attribute changes for each resource |
+| `ShowChanges` | Switch | No | Display detailed attribute changes for each resource with color-coded diff |
+| `ShowInsights` | Switch | No | Display intelligent analysis of cost, security, and governance impacts |
+| `TableAll` | Switch | No | Display all resources in a table format with Action, ResourceType, and ResourceName |
 | `ListCreated` | Switch | No | Show only resources that will be created |
-| `ListChanged` | Switch | No | Show only resources that will be updated or replaced |
+| `ListChanged` | Switch | No | Show only resources that will be updated |
 | `ListDestroyed` | Switch | No | Show only resources that will be destroyed |
+| `ListReplaced` | Switch | No | Show only resources that will be replaced |
+| `Category` | String | No | Filter by category: Compute, Storage, Network, Database, Security, Monitoring, All |
+| `ResourceName` | String | No | Filter by resource name pattern (supports wildcards, e.g., "*prod*") |
+| `ResourceType` | String | No | Filter by resource type (supports wildcards, e.g., "azurerm_virtual_machine") |
 
 #### Output Example
 
