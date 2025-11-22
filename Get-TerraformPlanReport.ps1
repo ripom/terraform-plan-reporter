@@ -223,6 +223,71 @@ $knowledgeBase = @{
         )
     }
     
+    # Carbon emission estimation (kg CO2e per month)
+    CarbonFootprint = @{
+        # Regional carbon intensity (gCO2e/kWh) - 2024 data
+        RegionalIntensity = @{
+            # Azure regions
+            'eastus' = 385; 'eastus2' = 385; 'westus' = 294; 'westus2' = 294; 'westus3' = 294
+            'centralus' = 460; 'northcentralus' = 460; 'southcentralus' = 460
+            'northeurope' = 275; 'westeurope' = 295; 'uksouth' = 233; 'ukwest' = 233
+            'francecentral' = 56; 'francesouth' = 56; 'germanywestcentral' = 338
+            'swedencentral' = 9; 'norwayeast' = 8; 'norwaywest' = 8
+            'switzerlandnorth' = 11; 'switzerlandwest' = 11
+            'eastasia' = 575; 'southeastasia' = 475; 'japaneast' = 465; 'japanwest' = 465
+            'australiaeast' = 640; 'australiasoutheast' = 640; 'australiacentral' = 640
+            'brazilsouth' = 79; 'canadacentral' = 25; 'canadaeast' = 25
+            'southafricanorth' = 890; 'uaenorth' = 475
+            # AWS regions
+            'us-east-1' = 415; 'us-east-2' = 460; 'us-west-1' = 294; 'us-west-2' = 294
+            'eu-west-1' = 295; 'eu-west-2' = 233; 'eu-west-3' = 56; 'eu-central-1' = 338
+            'eu-north-1' = 9; 'ap-south-1' = 700; 'ap-southeast-1' = 475; 'ap-southeast-2' = 640
+            'ap-northeast-1' = 465; 'ap-northeast-2' = 430; 'ap-northeast-3' = 465
+            'ca-central-1' = 25; 'sa-east-1' = 79
+            # GCP regions
+            'us-central1' = 460; 'us-east1' = 385; 'us-west1' = 294; 'us-west2' = 294
+            'europe-west1' = 118; 'europe-west2' = 233; 'europe-west3' = 338; 'europe-west4' = 432
+            'europe-north1' = 9; 'asia-east1' = 475; 'asia-southeast1' = 475; 'asia-northeast1' = 465
+            'australia-southeast1' = 640; 'southamerica-east1' = 79
+        }
+        # VM carbon footprint (kg CO2e/month) - based on vCPU hours and average PUE 1.2
+        VMSizes = @{
+            'Standard_B1s' = 2.5; 'Standard_B2s' = 5.0; 'Standard_B4ms' = 10.0
+            'Standard_D2s_v3' = 8.5; 'Standard_D4s_v3' = 17.0; 'Standard_D8s_v3' = 34.0
+            'Standard_D16s_v3' = 68.0; 'Standard_D32s_v3' = 136.0
+            'Standard_E2s_v3' = 8.5; 'Standard_E4s_v3' = 17.0; 'Standard_E8s_v3' = 34.0
+            'Standard_F2s_v2' = 8.5; 'Standard_F4s_v2' = 17.0; 'Standard_F8s_v2' = 34.0
+            't2.micro' = 2.5; 't2.small' = 2.5; 't2.medium' = 5.0; 't2.large' = 8.5
+            't3.micro' = 2.5; 't3.small' = 2.5; 't3.medium' = 5.0; 't3.large' = 8.5
+            'm5.large' = 8.5; 'm5.xlarge' = 17.0; 'm5.2xlarge' = 34.0
+            'e2-micro' = 2.0; 'e2-small' = 2.5; 'e2-medium' = 5.0; 'e2-standard-2' = 8.5
+        }
+        # Service carbon footprint (kg CO2e/month)
+        Services = @{
+            'azurerm_kubernetes_cluster' = 25
+            'azurerm_application_gateway' = 15
+            'azurerm_firewall' = 35
+            'azurerm_vpn_gateway' = 8
+            'azurerm_bastion_host' = 6
+            'azurerm_storage_account' = 3
+            'azurerm_sql_database' = 12
+            'azurerm_mssql_database' = 12
+            'azurerm_cosmosdb_account' = 18
+            'aws_eks_cluster' = 25
+            'aws_rds_instance' = 12
+            'aws_s3_bucket' = 3
+            'google_container_cluster' = 25
+            'google_sql_database_instance' = 12
+            'google_storage_bucket' = 3
+        }
+        # Low carbon regions (best for sustainability)
+        LowCarbonRegions = @{
+            'Azure' = @('norwayeast', 'norwaywest', 'swedencentral', 'francecentral', 'francesouth', 'switzerlandnorth', 'canadacentral', 'canadaeast', 'brazilsouth')
+            'AWS' = @('eu-north-1', 'eu-west-3', 'ca-central-1', 'sa-east-1')
+            'GCP' = @('europe-north1', 'europe-west1', 'southamerica-east1')
+        }
+    }
+    
     # Governance and compliance indicators
     GovernanceIndicators = @{
         Tags = @('tags', 'tag =', 'cost_center', 'environment', 'owner', 'project', 'compliance')
@@ -641,6 +706,15 @@ if ($results.Count -eq 0) {
                 ComplianceFrameworks = @()
                 CostManagement = @()
             }
+            Carbon = @{
+                High = @()
+                Medium = @()
+                Low = @()
+                MonthlyEmissions = 0
+                Details = @()
+                EstimatedImpact = "Unknown"
+                Recommendations = @()
+            }
         }
         
         # Analyze each resource (using filtered results if filters are active)
@@ -788,8 +862,102 @@ if ($results.Count -eq 0) {
                 }
             }
             
+            # === CARBON EMISSION ANALYSIS ===
+            # Detect region from resource changes or use default
+            $detectedRegion = 'eastus'  # default
+            foreach ($regionPattern in $knowledgeBase.CarbonFootprint.RegionalIntensity.Keys) {
+                if ($changesText -match [regex]::Escape($regionPattern) -or $item.Resource -match $regionPattern) {
+                    $detectedRegion = $regionPattern
+                    break
+                }
+            }
+            $carbonIntensity = if ($knowledgeBase.CarbonFootprint.RegionalIntensity.ContainsKey($detectedRegion)) {
+                $knowledgeBase.CarbonFootprint.RegionalIntensity[$detectedRegion]
+            } else { 400 }  # Default average
+            
+            # Calculate carbon emissions
+            $carbonEmissions = 0
+            $carbonDetail = ""
+            $carbonCategory = ""
+            
+            if ($resourceType -match 'virtual_machine|instance') {
+                # Check for VM size
+                foreach ($sizePattern in $knowledgeBase.CarbonFootprint.VMSizes.Keys) {
+                    if ($changesText -match [regex]::Escape($sizePattern)) {
+                        $carbonEmissions = $knowledgeBase.CarbonFootprint.VMSizes[$sizePattern]
+                        # Adjust for regional carbon intensity (relative to 400 gCO2e/kWh baseline)
+                        $carbonEmissions = $carbonEmissions * ($carbonIntensity / 400.0)
+                        $carbonDetail = "$sizePattern ≈ $([Math]::Round($carbonEmissions, 1)) kg CO2e/mo ($detectedRegion)"
+                        $carbonCategory = if ($carbonEmissions -gt 30) { "High" } elseif ($carbonEmissions -gt 10) { "Medium" } else { "Low" }
+                        break
+                    }
+                }
+                if ($carbonEmissions -eq 0) {
+                    $carbonEmissions = 15 * ($carbonIntensity / 400.0)
+                    $carbonDetail = "≈ $([Math]::Round($carbonEmissions, 1)) kg CO2e/mo ($detectedRegion)"
+                    $carbonCategory = "Medium"
+                }
+            }
+            elseif ($knowledgeBase.CarbonFootprint.Services.ContainsKey($resourceType)) {
+                $carbonEmissions = $knowledgeBase.CarbonFootprint.Services[$resourceType]
+                $carbonEmissions = $carbonEmissions * ($carbonIntensity / 400.0)
+                $carbonDetail = "≈ $([Math]::Round($carbonEmissions, 1)) kg CO2e/mo ($detectedRegion)"
+                $carbonCategory = if ($carbonEmissions -gt 30) { "High" } elseif ($carbonEmissions -gt 10) { "Medium" } else { "Low" }
+            }
+            elseif ($knowledgeBase.CostResources.High -contains $resourceType) {
+                $carbonEmissions = 20 * ($carbonIntensity / 400.0)
+                $carbonDetail = "≈ $([Math]::Round($carbonEmissions, 1)) kg CO2e/mo ($detectedRegion)"
+                $carbonCategory = "High"
+            }
+            elseif ($knowledgeBase.CostResources.Medium -contains $resourceType) {
+                $carbonEmissions = 5 * ($carbonIntensity / 400.0)
+                $carbonDetail = "≈ $([Math]::Round($carbonEmissions, 1)) kg CO2e/mo ($detectedRegion)"
+                $carbonCategory = "Medium"
+            }
+            elseif ($knowledgeBase.CostResources.Low -contains $resourceType) {
+                $carbonEmissions = 1 * ($carbonIntensity / 400.0)
+                $carbonDetail = "≈ $([Math]::Round($carbonEmissions, 1)) kg CO2e/mo ($detectedRegion)"
+                $carbonCategory = "Low"
+            }
+            
+            if ($carbonEmissions -gt 0) {
+                $carbonImpact = switch ($item.Action) {
+                    "Create" { $carbonEmissions }
+                    "Destroy" { -$carbonEmissions }
+                    "Replace" { 0 }
+                    "Update" { 0 }
+                    default { 0 }
+                }
+                
+                $insights.Carbon.MonthlyEmissions += $carbonImpact
+                
+                $impactLabel = switch ($item.Action) {
+                    "Create" { "+$carbonCategory" }
+                    "Destroy" { "-$carbonCategory" }
+                    "Replace" { "~$carbonCategory" }
+                    "Update" { "≈$carbonCategory" }
+                    default { $carbonCategory }
+                }
+                
+                if ($carbonCategory -eq "High") {
+                    $insights.Carbon.High += "$($item.Resource) [$impactLabel] $carbonDetail"
+                } elseif ($carbonCategory -eq "Medium") {
+                    $insights.Carbon.Medium += "$($item.Resource) [$impactLabel] $carbonDetail"
+                } else {
+                    $insights.Carbon.Low += "$($item.Resource) [$impactLabel] $carbonDetail"
+                }
+                
+                $insights.Carbon.Details += [PSCustomObject]@{
+                    Resource = $item.Resource
+                    Action = $item.Action
+                    MonthlyEmissions = $carbonEmissions
+                    Impact = $carbonImpact
+                    Region = $detectedRegion
+                    CarbonIntensity = $carbonIntensity
+                }
+            }
+            
             # === SECURITY ANALYSIS ===
-            $securityRelevant = $false
             $securityImprovement = 0
             
             foreach ($indicator in $knowledgeBase.SecurityIndicators.Critical) {
@@ -1082,6 +1250,129 @@ if ($results.Count -eq 0) {
             Write-Host "   No security-related changes detected.`n" -ForegroundColor Gray
         }
         
+        # Calculate carbon emission impact
+        $monthlyCarbon = $insights.Carbon.MonthlyEmissions
+        $insights.Carbon.EstimatedImpact = if ($monthlyCarbon -gt 100) { "High Impact 🌡️🌡️🌡️ (+$([Math]::Round($monthlyCarbon, 1)) kg CO2e/mo)" }
+                                          elseif ($monthlyCarbon -gt 30) { "Moderate Impact 🌡️🌡️ (+$([Math]::Round($monthlyCarbon, 1)) kg CO2e/mo)" }
+                                          elseif ($monthlyCarbon -gt 0) { "Minor Impact 🌡️ (+$([Math]::Round($monthlyCarbon, 1)) kg CO2e/mo)" }
+                                          elseif ($monthlyCarbon -eq 0) { "No Change ≈" }
+                                          elseif ($monthlyCarbon -gt -30) { "Minor Reduction 🌱 ($([Math]::Round($monthlyCarbon, 1)) kg CO2e/mo)" }
+                                          elseif ($monthlyCarbon -gt -100) { "Moderate Reduction 🌱🌱 ($([Math]::Round($monthlyCarbon, 1)) kg CO2e/mo)" }
+                                          else { "Significant Reduction 🌱🌱🌱 ($([Math]::Round($monthlyCarbon, 1)) kg CO2e/mo)" }
+        
+        # Generate carbon recommendations based on detected resources and patterns
+        if ($insights.Carbon.Details.Count -gt 0) {
+            # Check for high carbon intensity regions
+            $highCarbonRegions = $insights.Carbon.Details | Where-Object { $_.CarbonIntensity -gt 400 } | Select-Object -ExpandProperty Region -Unique
+            if ($highCarbonRegions.Count -gt 0) {
+                $lowCarbonAlternatives = @{
+                    'eastus' = 'Canada East, France Central'
+                    'eastus2' = 'Canada East, France Central'
+                    'westus' = 'Canada Central, West Europe'
+                    'westus2' = 'Canada Central, West Europe'
+                    'centralus' = 'Canada Central, North Europe'
+                    'southeastasia' = 'West Europe, France Central'
+                    'australiaeast' = 'West Europe, Norway East, Sweden Central'
+                    'australiasoutheast' = 'West Europe, Norway East, Sweden Central'
+                    'southafricanorth' = 'France Central, West Europe, Canada East'
+                    'centralindia' = 'France Central, Norway East, Sweden Central'
+                }
+                foreach ($region in $highCarbonRegions) {
+                    $alternatives = $lowCarbonAlternatives[$region]
+                    if ($alternatives) {
+                        $insights.Carbon.Recommendations += "⚠️ Region '$region' has high carbon intensity ($($insights.Carbon.Details | Where-Object { $_.Region -eq $region } | Select-Object -First 1 -ExpandProperty CarbonIntensity) gCO2e/kWh). Consider: $alternatives"
+                    } else {
+                        $insights.Carbon.Recommendations += "⚠️ Region '$region' has high carbon intensity. Consider low-carbon regions: Norway East, Sweden Central, France Central, Canada East/Central, Brazil South"
+                    }
+                }
+            }
+            
+            # Analyze VM types and sizes
+            $vmDetails = $insights.Carbon.Details | Where-Object { $_.Resource -match 'virtual_machine|azurerm_linux_virtual_machine|azurerm_windows_virtual_machine' }
+            if ($vmDetails.Count -gt 0) {
+                $highPerfVMs = $vmDetails | Where-Object { $_.Resource -match 'Standard_D\d+s|Standard_E\d+|Standard_F\d+' }
+                $devTestVMs = $vmDetails | Where-Object { $_.Resource -match '\b(dev|test|sandbox|nonprod)\b' }
+                
+                if ($highPerfVMs.Count -gt 0) {
+                    $insights.Carbon.Recommendations += "💡 $($highPerfVMs.Count) high-performance VM(s) detected. Evaluate if workload requires this capacity or if downsizing is possible"
+                }
+                
+                if ($devTestVMs.Count -gt 0) {
+                    $insights.Carbon.Recommendations += "💡 $($devTestVMs.Count) dev/test VM(s) detected. Consider B-series burstable VMs (up to 60% carbon reduction) and auto-shutdown policies"
+                } elseif ($vmDetails.Count -gt 2) {
+                    $insights.Carbon.Recommendations += "💡 Enable auto-shutdown schedules for non-production VMs during non-business hours (weekends, nights)"
+                }
+            }
+            
+            # Analyze AKS/Container workloads
+            $aksDetails = $insights.Carbon.Details | Where-Object { $_.Resource -match 'kubernetes_cluster|container_registry|container_instance' }
+            if ($aksDetails.Count -gt 0) {
+                $insights.Carbon.Recommendations += "💡 $($aksDetails.Count) container workload(s) detected. Enable cluster autoscaling and node pool spot instances to optimize carbon footprint"
+            }
+            
+            # Analyze storage resources
+            $storageDetails = $insights.Carbon.Details | Where-Object { $_.Resource -match 'storage_account|managed_disk' }
+            if ($storageDetails.Count -gt 5) {
+                $insights.Carbon.Recommendations += "💡 $($storageDetails.Count) storage resources detected. Implement lifecycle management policies to move cold data to Cool/Archive tiers"
+            }
+            
+            # Check for database resources
+            $dbDetails = $insights.Carbon.Details | Where-Object { $_.Resource -match 'sql_database|postgresql|mysql|cosmosdb' }
+            if ($dbDetails.Count -gt 0) {
+                $insights.Carbon.Recommendations += "💡 $($dbDetails.Count) database(s) detected. Consider serverless tiers for dev/test, and auto-pause capabilities for infrequent workloads"
+            }
+            
+            # Overall carbon footprint recommendations
+            if ($monthlyCarbon -gt 100) {
+                $insights.Carbon.Recommendations += "🎯 High carbon footprint detected (>100 kg CO2e/mo). Prioritize: reserved instances for predictable workloads, spot instances for fault-tolerant jobs, and infrastructure optimization"
+            } elseif ($monthlyCarbon -gt 50) {
+                $insights.Carbon.Recommendations += "🎯 Moderate carbon footprint detected. Consider reserved instances for long-running workloads and enable cost/carbon optimization features"
+            }
+            
+            # Check for resources being created in multiple regions
+            $regions = $insights.Carbon.Details | Select-Object -ExpandProperty Region -Unique
+            if ($regions.Count -gt 2) {
+                $insights.Carbon.Recommendations += "🌍 Resources deployed across $($regions.Count) regions. Consider consolidating to fewer low-carbon regions to reduce overall footprint"
+            }
+        }
+        
+        # Add general recommendations if no specific ones generated
+        if ($insights.Carbon.Recommendations.Count -eq 0 -and $insights.Carbon.Details.Count -gt 0) {
+            $insights.Carbon.Recommendations += "✅ Current deployment has relatively low carbon impact. Continue monitoring and optimizing resource utilization"
+        }
+        
+        Write-Host "🌍 CARBON IMPACT ANALYSIS" -ForegroundColor Green
+        Write-Host "   Monthly Carbon Footprint: " -NoNewline
+        $carbonColor = if ($insights.Carbon.EstimatedImpact -match "High Impact") { "Red" }
+                      elseif ($insights.Carbon.EstimatedImpact -match "Moderate Impact") { "Yellow" }
+                      elseif ($insights.Carbon.EstimatedImpact -match "Reduction") { "Green" }
+                      else { "Gray" }
+        Write-Host $insights.Carbon.EstimatedImpact -ForegroundColor $carbonColor
+        Write-Host "   ⚠️  Estimates based on regional carbon intensity and resource utilization" -ForegroundColor DarkGray
+        Write-Host ""
+        
+        if ($insights.Carbon.High.Count -gt 0) {
+            Write-Host "   High Carbon Resources ($($insights.Carbon.High.Count)):" -ForegroundColor Red
+            $insights.Carbon.High | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkRed }
+            Write-Host ""
+        }
+        if ($insights.Carbon.Medium.Count -gt 0) {
+            Write-Host "   Medium Carbon Resources ($($insights.Carbon.Medium.Count)):" -ForegroundColor Yellow
+            $insights.Carbon.Medium | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkYellow }
+            Write-Host ""
+        }
+        if ($insights.Carbon.Low.Count -gt 0) {
+            Write-Host "   Low Carbon Resources ($($insights.Carbon.Low.Count)):" -ForegroundColor Green
+            $insights.Carbon.Low | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkGreen }
+            Write-Host ""
+        }
+        
+        if ($insights.Carbon.Recommendations.Count -gt 0) {
+            Write-Host "   💡 Sustainability Recommendations:" -ForegroundColor Cyan
+            $insights.Carbon.Recommendations | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkCyan }
+            Write-Host ""
+        }
+        
         # Calculate governance score (0-10 scale)
         $govScore = 0
         if ($insights.Governance.Tags.Count -gt 0) { $govScore += 1 }
@@ -1188,6 +1479,203 @@ if ($results.Count -eq 0) {
         }
         
         Write-Host "================================================================================`n" -ForegroundColor Cyan
+        
+        # === EXECUTIVE SUMMARY ===
+        Write-Host "📊 EXECUTIVE SUMMARY" -ForegroundColor White -BackgroundColor DarkBlue
+        Write-Host "================================================================================`n" -ForegroundColor Cyan
+        
+        # Resource Changes Summary
+        Write-Host "📦 Resource Changes:" -ForegroundColor White
+        $totalCreate = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Create" }).Count
+        $totalUpdate = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Update" }).Count
+        $totalDestroy = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Destroy" }).Count
+        $totalReplace = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Replace" }).Count
+        $totalResources = $totalCreate + $totalUpdate + $totalDestroy + $totalReplace
+        
+        Write-Host "   Total Resources Affected: " -NoNewline -ForegroundColor Gray
+        Write-Host $totalResources -ForegroundColor White
+        Write-Host "   • Creating: " -NoNewline -ForegroundColor Gray
+        Write-Host $totalCreate -NoNewline -ForegroundColor Green
+        Write-Host " | Updating: " -NoNewline -ForegroundColor Gray
+        Write-Host $totalUpdate -NoNewline -ForegroundColor Yellow
+        Write-Host " | Destroying: " -NoNewline -ForegroundColor Gray
+        Write-Host $totalDestroy -NoNewline -ForegroundColor Red
+        Write-Host " | Replacing: " -NoNewline -ForegroundColor Gray
+        Write-Host $totalReplace -ForegroundColor Magenta
+        Write-Host ""
+        
+        # Cost Summary
+        Write-Host "💰 Cost Impact:" -ForegroundColor White
+        Write-Host "   Monthly Cost Change: " -NoNewline -ForegroundColor Gray
+        if ($insights.Cost.MonthlyEstimate -gt 0) {
+            Write-Host "+`$$([Math]::Round([Math]::Abs($insights.Cost.MonthlyEstimate), 2))" -NoNewline -ForegroundColor Red
+        } elseif ($insights.Cost.MonthlyEstimate -lt 0) {
+            Write-Host "`$$([Math]::Round($insights.Cost.MonthlyEstimate, 2))" -NoNewline -ForegroundColor Green
+        } else {
+            Write-Host "`$0.00" -NoNewline -ForegroundColor Gray
+        }
+        Write-Host "/month" -ForegroundColor Gray
+        
+        $totalCostResources = $insights.Cost.High.Count + $insights.Cost.Medium.Count + $insights.Cost.Low.Count
+        if ($totalCostResources -gt 0) {
+            Write-Host "   Cost-Impacting Resources: " -NoNewline -ForegroundColor Gray
+            Write-Host "$totalCostResources " -NoNewline -ForegroundColor White
+            Write-Host "(" -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Cost.High.Count) High" -NoNewline -ForegroundColor Red
+            Write-Host ", " -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Cost.Medium.Count) Medium" -NoNewline -ForegroundColor Yellow
+            Write-Host ", " -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Cost.Low.Count) Low" -NoNewline -ForegroundColor Green
+            Write-Host ")" -ForegroundColor Gray
+        }
+        Write-Host ""
+        
+        # Carbon Summary
+        Write-Host "🌍 Carbon Footprint:" -ForegroundColor White
+        Write-Host "   Monthly Emissions Change: " -NoNewline -ForegroundColor Gray
+        if ($insights.Carbon.MonthlyEmissions -gt 0) {
+            Write-Host "+$([Math]::Round([Math]::Abs($insights.Carbon.MonthlyEmissions), 1))" -NoNewline -ForegroundColor Red
+        } elseif ($insights.Carbon.MonthlyEmissions -lt 0) {
+            Write-Host "$([Math]::Round($insights.Carbon.MonthlyEmissions, 1))" -NoNewline -ForegroundColor Green
+        } else {
+            Write-Host "0.0" -NoNewline -ForegroundColor Gray
+        }
+        Write-Host " kg CO2e/month" -ForegroundColor Gray
+        
+        $totalCarbonResources = $insights.Carbon.High.Count + $insights.Carbon.Medium.Count + $insights.Carbon.Low.Count
+        if ($totalCarbonResources -gt 0) {
+            Write-Host "   Carbon-Emitting Resources: " -NoNewline -ForegroundColor Gray
+            Write-Host "$totalCarbonResources " -NoNewline -ForegroundColor White
+            Write-Host "(" -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Carbon.High.Count) High" -NoNewline -ForegroundColor Red
+            Write-Host ", " -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Carbon.Medium.Count) Medium" -NoNewline -ForegroundColor Yellow
+            Write-Host ", " -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Carbon.Low.Count) Low" -NoNewline -ForegroundColor Green
+            Write-Host ")" -ForegroundColor Gray
+        }
+        if ($insights.Carbon.Recommendations.Count -gt 0) {
+            Write-Host "   Sustainability Recommendations: " -NoNewline -ForegroundColor Gray
+            Write-Host $insights.Carbon.Recommendations.Count -ForegroundColor Cyan
+        }
+        Write-Host ""
+        
+        # Security Summary
+        Write-Host "🔒 Security Impact:" -ForegroundColor White
+        $totalSecurityChanges = $insights.Security.Positive.Count + $insights.Security.Negative.Count + $insights.Security.Neutral.Count
+        if ($totalSecurityChanges -gt 0) {
+            Write-Host "   Security-Related Changes: " -NoNewline -ForegroundColor Gray
+            Write-Host "$totalSecurityChanges " -NoNewline -ForegroundColor White
+            Write-Host "(" -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Security.Positive.Count) Improvements" -NoNewline -ForegroundColor Green
+            Write-Host ", " -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Security.Negative.Count) Concerns" -NoNewline -ForegroundColor Red
+            Write-Host ", " -NoNewline -ForegroundColor Gray
+            Write-Host "$($insights.Security.Neutral.Count) Modifications" -NoNewline -ForegroundColor Gray
+            Write-Host ")" -ForegroundColor Gray
+            
+            Write-Host "   Security Trend: " -NoNewline -ForegroundColor Gray
+            if ($insights.Security.OverallTrend -match "Improved") {
+                Write-Host $insights.Security.OverallTrend -ForegroundColor Green
+            } elseif ($insights.Security.OverallTrend -match "Degraded") {
+                Write-Host $insights.Security.OverallTrend -ForegroundColor Red
+            } else {
+                Write-Host $insights.Security.OverallTrend -ForegroundColor Gray
+            }
+        } else {
+            Write-Host "   No security-related changes detected" -ForegroundColor Gray
+        }
+        Write-Host ""
+        
+        # Governance Summary
+        Write-Host "📋 Governance & Compliance:" -ForegroundColor White
+        Write-Host "   Governance Score: " -NoNewline -ForegroundColor Gray
+        $govScoreColor = if ($govScore -ge 8) { "Green" } elseif ($govScore -ge 5) { "Yellow" } else { "Red" }
+        Write-Host "$govScore/12 " -NoNewline -ForegroundColor $govScoreColor
+        $govPercentage = [Math]::Round(($govScore / 12) * 100, 0)
+        Write-Host "($govPercentage%)" -ForegroundColor Gray
+        
+        $govCategoriesFound = 0
+        if ($insights.Governance.Tags.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.Naming.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.Policies.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.Backup.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.Locks.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.RBAC.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.NetworkIsolation.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.AuditLogging.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.ComplianceFrameworks.Count -gt 0) { $govCategoriesFound++ }
+        if ($insights.Governance.CostManagement.Count -gt 0) { $govCategoriesFound++ }
+        
+        Write-Host "   Governance Categories Implemented: " -NoNewline -ForegroundColor Gray
+        Write-Host "$govCategoriesFound/10" -ForegroundColor White
+        
+        if ($totalGovItems -gt 0) {
+            Write-Host "   Total Governance Resources: " -NoNewline -ForegroundColor Gray
+            Write-Host $totalGovItems -ForegroundColor White
+            
+            # Top governance categories
+            $topGov = @()
+            if ($insights.Governance.Tags.Count -gt 0) { $topGov += "Tags ($($insights.Governance.Tags.Count))" }
+            if ($insights.Governance.Naming.Count -gt 0) { $topGov += "Naming ($($insights.Governance.Naming.Count))" }
+            if ($insights.Governance.RBAC.Count -gt 0) { $topGov += "RBAC ($($insights.Governance.RBAC.Count))" }
+            if ($insights.Governance.NetworkIsolation.Count -gt 0) { $topGov += "Network Isolation ($($insights.Governance.NetworkIsolation.Count))" }
+            if ($insights.Governance.Backup.Count -gt 0) { $topGov += "Backup ($($insights.Governance.Backup.Count))" }
+            
+            if ($topGov.Count -gt 0) {
+                Write-Host "   Top Categories: " -NoNewline -ForegroundColor Gray
+                Write-Host ($topGov -join ", ") -ForegroundColor Cyan
+            }
+        }
+        Write-Host ""
+        
+        # Overall Assessment
+        Write-Host "✅ Overall Assessment:" -ForegroundColor White
+        $riskLevel = "Low"
+        $riskColor = "Green"
+        $riskFactors = @()
+        
+        if ($totalDestroy -gt 10) {
+            $riskLevel = "High"
+            $riskColor = "Red"
+            $riskFactors += "$totalDestroy resources will be destroyed"
+        } elseif ($totalDestroy -gt 5) {
+            $riskLevel = "Medium"
+            $riskColor = "Yellow"
+            $riskFactors += "$totalDestroy resources will be destroyed"
+        }
+        
+        if ($insights.Cost.MonthlyEstimate -gt 500) {
+            $riskLevel = "High"
+            $riskColor = "Red"
+            $riskFactors += "High cost increase (+`$$([Math]::Round($insights.Cost.MonthlyEstimate, 0))/mo)"
+        } elseif ($insights.Cost.MonthlyEstimate -gt 200) {
+            if ($riskLevel -eq "Low") { $riskLevel = "Medium"; $riskColor = "Yellow" }
+            $riskFactors += "Moderate cost increase (+`$$([Math]::Round($insights.Cost.MonthlyEstimate, 0))/mo)"
+        }
+        
+        if ($insights.Security.Negative.Count -gt 0) {
+            $riskLevel = "High"
+            $riskColor = "Red"
+            $riskFactors += "$($insights.Security.Negative.Count) security concerns identified"
+        }
+        
+        if ($govScore -lt 5) {
+            if ($riskLevel -ne "High") { $riskLevel = "Medium"; $riskColor = "Yellow" }
+            $riskFactors += "Low governance score ($govScore/12)"
+        }
+        
+        Write-Host "   Risk Level: " -NoNewline -ForegroundColor Gray
+        Write-Host $riskLevel -ForegroundColor $riskColor
+        
+        if ($riskFactors.Count -gt 0) {
+            Write-Host "   Risk Factors:" -ForegroundColor Gray
+            $riskFactors | ForEach-Object { Write-Host "   • $_" -ForegroundColor DarkGray }
+        } else {
+            Write-Host "   No significant risks identified" -ForegroundColor Green
+        }
+        
+        Write-Host "`n================================================================================`n" -ForegroundColor Cyan
     }
 }
 

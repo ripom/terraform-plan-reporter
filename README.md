@@ -32,6 +32,7 @@ Main script that parses Terraform plan output and generates a human-readable rep
   - Security Analysis: Detects security-sensitive changes and trends
   - Governance: Analyzes tags, naming conventions, policies, backup, RBAC, network isolation, and more
   - Naming Convention Detection: Validates Azure CAF, AWS, and GCP naming standards
+  - **Carbon Emission Analysis**: Estimates CO2 emissions with regional carbon intensity and sustainability recommendations
 - ✓ Automatic ANSI color code and timestamp removal
 - ✓ Summary statistics at the end
 
@@ -148,6 +149,45 @@ Example output:
    • azurerm_resource_group.rg-myapp-prod-eastus - Follows naming convention: Azure CAF prefix (rg-), environment indicator (prod), region indicator (eastus), multi-segment structure (5 parts)
    • azurerm_virtual_network.vnet-hub-prod - Follows naming convention: Azure CAF prefix (vnet-), environment indicator (prod)
 ```
+
+**Carbon Emission Analysis**
+- Estimates monthly CO2 emissions (kg CO2e) per resource
+- Considers regional carbon intensity factors
+  - Low carbon regions: Norway (~8 gCO2e/kWh), Sweden (~9), France (~56), Canada (~25)
+  - High carbon regions: Australia (~640), South Africa (~890), India (~700)
+- Provides sustainability recommendations
+- Categorizes resources by carbon impact (High/Medium/Low)
+- Tracks overall carbon footprint changes with color-coded direction indicators:
+  - **Red (+)**: Increase in emissions (creating resources adds CO2)
+  - **Green (-)**: Decrease in emissions (destroying resources reduces CO2)
+  - **Gray (0)**: No change in emissions
+
+Example output:
+```
+🌍 CARBON IMPACT ANALYSIS
+   Monthly Carbon Footprint: Moderate Impact 🌡️🌡️ (+45.3 kg CO2e/mo)
+   ⚠️  Estimates based on regional carbon intensity and resource utilization
+   
+   High Carbon Resources (2):
+   • azurerm_virtual_machine.vm_prod [+High] Standard_D8s_v3 ≈ 34.0 kg CO2e/mo (eastus)
+   • azurerm_kubernetes_cluster.aks [+High] ≈ 25.0 kg CO2e/mo (eastus)
+   
+   💡 Sustainability Recommendations:
+   • Consider migrating to low-carbon regions (Norway, Sweden, France, Canada, Brazil)
+   • Evaluate B-series burstable VMs for non-production workloads (up to 60% carbon reduction)
+   • Enable auto-shutdown for dev/test VMs during non-business hours
+
+📊 EXECUTIVE SUMMARY
+   🌍 Carbon Footprint:
+      Monthly Emissions Change: +51.5 kg CO2e/month (Red indicates increased environmental impact)
+      Carbon-Emitting Resources: 40 (0 High, 2 Medium, 38 Low)
+```
+
+**Understanding Carbon Footprint Colors**:
+The color coding reflects the **direction of environmental impact**, not severity:
+- When deploying new infrastructure, you'll see red (+X kg CO2e/month) indicating additional carbon emissions
+- When decommissioning infrastructure, you'll see green (-X kg CO2e/month) indicating carbon reduction
+- This helps teams understand the environmental cost of infrastructure changes and make informed decisions
 
 #### Parameters
 
