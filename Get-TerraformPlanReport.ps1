@@ -983,12 +983,28 @@ if ($results.Count -eq 0) {
                     }
                     
                     if ($positiveMatch -and -not $negativeMatch) {
-                        $insights.Security.Positive += "$($item.Resource) - Improved: $indicator"
-                        $securityImprovement += 1
+                        # Improvement keyword found (encryption, HTTPS, etc.)
+                        if ($item.Action -eq "Destroy") {
+                            # Destroying a secure resource = losing security
+                            $insights.Security.Negative += "$($item.Resource) - Security degradation: Removing $indicator"
+                            $securityImprovement -= 1
+                        } else {
+                            # Creating/updating a secure resource = improvement
+                            $insights.Security.Positive += "$($item.Resource) - Improved: $indicator"
+                            $securityImprovement += 1
+                        }
                     }
                     elseif ($negativeMatch) {
-                        $insights.Security.Negative += "$($item.Resource) - Risk: $indicator"
-                        $securityImprovement -= 1
+                        # Risk keyword found (public access, weak encryption, etc.)
+                        if ($item.Action -eq "Destroy") {
+                            # Destroying a risky resource = improvement!
+                            $insights.Security.Positive += "$($item.Resource) - Security improvement: Removing $indicator risk"
+                            $securityImprovement += 1
+                        } else {
+                            # Creating/updating a risky resource = concern
+                            $insights.Security.Negative += "$($item.Resource) - Risk: $indicator"
+                            $securityImprovement -= 1
+                        }
                     }
                     else {
                         $insights.Security.Neutral += "$($item.Resource) - Modified: $indicator"
