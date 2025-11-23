@@ -120,22 +120,44 @@ $knowledgeBase = @{
         High = @(
             'azurerm_virtual_machine', 'azurerm_windows_virtual_machine', 'azurerm_linux_virtual_machine',
             'azurerm_kubernetes_cluster', 'azurerm_app_service', 'azurerm_function_app',
+            'azurerm_virtual_machine_scale_set', 'azurerm_container_registry',
+            'azurerm_linux_web_app', 'azurerm_windows_web_app',
+            'azurerm_container_app', 'azurerm_container_app_environment',
+            'azurerm_api_management', 'azurerm_machine_learning_workspace',
+            'azurerm_recovery_services_vault', 'azurerm_virtual_wan', 'azurerm_virtual_hub',
             'azurerm_sql_database', 'azurerm_mssql_database', 'azurerm_cosmosdb_account',
+            'azurerm_postgresql_server', 'azurerm_postgresql_flexible_server',
+            'azurerm_mysql_server', 'azurerm_mysql_flexible_server',
+            'azurerm_mariadb_server', 'azurerm_sql_managed_instance',
             'azurerm_synapse_workspace', 'azurerm_databricks_workspace',
-            'azurerm_application_gateway', 'azurerm_firewall', 'azurerm_vpn_gateway',
+            'azurerm_application_gateway', 'azurerm_firewall', 'azurerm_vpn_gateway', 'azurerm_front_door',
             'aws_instance', 'aws_rds_instance', 'aws_eks_cluster', 'aws_ecs_cluster',
             'google_compute_instance', 'google_container_cluster', 'google_sql_database_instance'
         )
         Medium = @(
             'azurerm_storage_account', 'azurerm_public_ip', 'azurerm_lb', 'azurerm_nat_gateway',
             'azurerm_redis_cache', 'azurerm_app_service_plan', 'azurerm_cdn_profile',
-            'azurerm_virtual_network_gateway', 'azurerm_express_route_circuit',
+            'azurerm_virtual_network_gateway', 'azurerm_express_route_circuit', 'azurerm_frontdoor_firewall_policy',
+            'azurerm_firewall_policy', 'azurerm_web_application_firewall_policy',
+            'azurerm_local_network_gateway', 'azurerm_point_to_site_vpn_gateway',
+            'azurerm_service_bus_namespace', 'azurerm_eventhub_namespace', 'azurerm_eventgrid_topic',
+            'azurerm_container_group', 'azurerm_batch_account', 'azurerm_logic_app_workflow',
+            'azurerm_cognitive_account', 'azurerm_data_lake_store',
             'aws_s3_bucket', 'aws_ebs_volume', 'aws_elasticache_cluster', 'aws_elb',
             'google_storage_bucket', 'google_compute_disk'
         )
         Low = @(
             'azurerm_resource_group', 'azurerm_virtual_network', 'azurerm_subnet',
             'azurerm_network_security_group', 'azurerm_key_vault', 'azurerm_log_analytics_workspace',
+            'azurerm_key_vault_secret', 'azurerm_key_vault_key', 'azurerm_key_vault_certificate',
+            'azurerm_backup_policy_vm', 'azurerm_backup_protected_vm', 'azurerm_site_recovery_fabric',
+            'azurerm_site_recovery_replication_policy', 'azurerm_site_recovery_protection_container',
+            'azurerm_application_insights', 'azurerm_monitor_autoscale_setting',
+            'azurerm_monitor_scheduled_query_rules_alert',
+            'azurerm_traffic_manager_profile', 'azurerm_traffic_manager_endpoint',
+            'azurerm_dns_zone', 'azurerm_private_dns_zone',
+            'azurerm_network_interface', 'azurerm_route_table', 'azurerm_network_watcher',
+            'azurerm_storage_blob', 'azurerm_storage_container', 'azurerm_storage_queue', 'azurerm_storage_table',
             'aws_vpc', 'aws_subnet', 'aws_security_group', 'aws_iam_role',
             'google_compute_network', 'google_compute_subnetwork'
         )
@@ -167,8 +189,47 @@ $knowledgeBase = @{
             'azurerm_vpn_gateway' = 140              # VpnGw1
             'azurerm_bastion_host' = 140             # Basic SKU
             'azurerm_public_ip' = 3                  # Static IP
+            'azurerm_traffic_manager_profile' = 1    # ~$0.54/million queries + $0.36/health check
+            'azurerm_front_door' = 35                # Gateway + data processing
+            'azurerm_frontdoor_firewall_policy' = 20 # WAF policy
+            'azurerm_dns_zone' = 1                   # Per zone per month
+            'azurerm_private_dns_zone' = 1           # Per zone per month
             'azurerm_sql_database' = 15              # Basic tier minimum
             'azurerm_mssql_database' = 15            # Basic tier minimum
+            'azurerm_postgresql_server' = 20         # Basic tier
+            'azurerm_postgresql_flexible_server' = 20 # Burstable tier
+            'azurerm_mysql_server' = 20              # Basic tier
+            'azurerm_mysql_flexible_server' = 20     # Burstable tier
+            'azurerm_mariadb_server' = 20            # Basic tier
+            'azurerm_sql_managed_instance' = 400     # GP Gen5 2 vCores
+            'azurerm_service_bus_namespace' = 10     # Basic tier
+            'azurerm_eventhub_namespace' = 22        # Basic tier
+            'azurerm_eventgrid_topic' = 1            # Per million operations
+            'azurerm_api_management' = 50            # Developer tier
+            'azurerm_cognitive_account' = 10         # S0 tier varies by service
+            'azurerm_machine_learning_workspace' = 0 # Compute charged separately
+            'azurerm_container_group' = 30           # 1 vCPU, 1.5GB RAM
+            'azurerm_container_registry' = 5         # Basic tier
+            'azurerm_batch_account' = 0              # Compute charged separately
+            'azurerm_virtual_machine_scale_set' = 140 # Depends on VM size
+            'azurerm_logic_app_workflow' = 0         # Per execution pricing
+            'azurerm_linux_web_app' = 13             # Basic B1
+            'azurerm_windows_web_app' = 13           # Basic B1
+            'azurerm_container_app' = 20             # Consumption tier with requests
+            'azurerm_container_app_environment' = 0  # Infrastructure cost minimal
+            'azurerm_recovery_services_vault' = 10   # Vault itself, backup storage extra
+            'azurerm_backup_policy_vm' = 0           # Policy definition, no cost
+            'azurerm_backup_protected_vm' = 20       # ~$5/50GB backup
+            'azurerm_application_insights' = 2       # Basic tier, 5GB free
+            'azurerm_monitor_autoscale_setting' = 0  # No additional cost
+            'azurerm_monitor_scheduled_query_rules_alert' = 0 # Included in Log Analytics
+            'azurerm_firewall_policy' = 0            # Policy definition, firewall charged
+            'azurerm_web_application_firewall_policy' = 0 # Policy definition
+            'azurerm_local_network_gateway' = 0      # Gateway definition
+            'azurerm_point_to_site_vpn_gateway' = 140 # P2S VPN gateway
+            'azurerm_virtual_wan' = 0.25             # Per hub hour
+            'azurerm_virtual_hub' = 0.25             # Per hub hour
+            'azurerm_data_lake_store' = 30           # Per TB
             'azurerm_redis_cache' = 15               # Basic C0
             'azurerm_cosmosdb_account' = 25          # 400 RU/s minimum
             'aws_eks_cluster' = 73
@@ -197,16 +258,19 @@ $knowledgeBase = @{
     Categories = @{
         Compute = @(
             'virtual_machine', 'instance', 'kubernetes', 'container', 'function_app', 'app_service',
-            'batch', 'vm_scale_set', 'aks', 'eks', 'gke', 'ecs', 'lambda', 'compute_instance'
+            'batch', 'vm_scale_set', 'aks', 'eks', 'gke', 'ecs', 'lambda', 'compute_instance',
+            'container_group', 'container_registry', 'batch_account', 'logic_app', 'web_app'
         )
         Storage = @(
             'storage_account', 's3_bucket', 'disk', 'managed_disk', 'blob', 'file_share',
-            'storage_bucket', 'ebs_volume', 'persistent_disk'
+            'storage_bucket', 'ebs_volume', 'persistent_disk', 'storage_container',
+            'storage_queue', 'storage_table', 'data_lake'
         )
         Network = @(
             'virtual_network', 'subnet', 'network_security_group', 'firewall', 'load_balancer',
             'application_gateway', 'vpn', 'express_route', 'nat_gateway', 'public_ip',
-            'private_endpoint', 'vpc', 'security_group', 'route_table', 'peering'
+            'private_endpoint', 'traffic_manager', 'network_interface', 'route_table',
+            'network_watcher', 'vpc', 'security_group', 'route_table', 'peering'
         )
         Database = @(
             'sql_database', 'mysql', 'postgresql', 'cosmosdb', 'redis', 'mariadb',
@@ -215,11 +279,11 @@ $knowledgeBase = @{
         Security = @(
             'key_vault', 'certificate', 'secret', 'identity', 'role_assignment',
             'policy_assignment', 'security_center', 'defender', 'kms', 'secrets_manager',
-            'iam_role', 'iam_policy'
+            'iam_role', 'iam_policy', 'backup', 'recovery', 'site_recovery'
         )
         Monitoring = @(
             'log_analytics', 'application_insights', 'monitor', 'diagnostic', 'alert',
-            'cloudwatch', 'stackdriver', 'metric'
+            'autoscale', 'cloudwatch', 'stackdriver', 'metric'
         )
     }
     
@@ -270,8 +334,44 @@ $knowledgeBase = @{
             'azurerm_vpn_gateway' = 8
             'azurerm_bastion_host' = 6
             'azurerm_storage_account' = 3
+            'azurerm_traffic_manager_profile' = 0.2  # DNS-based routing service
+            'azurerm_traffic_manager_endpoint' = 0.1 # Endpoint health checks
+            'azurerm_front_door' = 12                # Global edge network
+            'azurerm_frontdoor_firewall_policy' = 0.5  # Policy processing
+            'azurerm_dns_zone' = 0.1                 # DNS queries minimal
+            'azurerm_private_dns_zone' = 0.05        # Internal DNS minimal
             'azurerm_sql_database' = 12
             'azurerm_mssql_database' = 12
+            'azurerm_postgresql_server' = 10         # Database server
+            'azurerm_postgresql_flexible_server' = 10
+            'azurerm_mysql_server' = 10
+            'azurerm_mysql_flexible_server' = 10
+            'azurerm_mariadb_server' = 10
+            'azurerm_sql_managed_instance' = 45      # High compute DB
+            'azurerm_service_bus_namespace' = 2      # Messaging service
+            'azurerm_eventhub_namespace' = 4         # Streaming service
+            'azurerm_eventgrid_topic' = 0.5          # Event routing
+            'azurerm_api_management' = 8             # API gateway
+            'azurerm_cognitive_account' = 6          # AI service
+            'azurerm_machine_learning_workspace' = 0 # Compute charged separately
+            'azurerm_container_group' = 8            # Container instances
+            'azurerm_container_registry' = 2         # Registry service
+            'azurerm_batch_account' = 0              # Compute charged separately
+            'azurerm_virtual_machine_scale_set' = 34 # Varies by VM size
+            'azurerm_logic_app_workflow' = 1         # Workflow service
+            'azurerm_linux_web_app' = 5              # Web hosting
+            'azurerm_windows_web_app' = 5            # Web hosting
+            'azurerm_container_app' = 6              # Container hosting
+            'azurerm_container_app_environment' = 0.5 # Shared infrastructure
+            'azurerm_recovery_services_vault' = 1    # Vault service
+            'azurerm_backup_protected_vm' = 2        # Backup overhead
+            'azurerm_application_insights' = 0.5     # Monitoring service
+            'azurerm_firewall_policy' = 0.1          # Policy processing
+            'azurerm_web_application_firewall_policy' = 0.2 # WAF processing
+            'azurerm_point_to_site_vpn_gateway' = 6  # VPN gateway
+            'azurerm_virtual_wan' = 4                # WAN service
+            'azurerm_virtual_hub' = 4                # Hub routing
+            'azurerm_data_lake_store' = 5            # Storage service
             'azurerm_cosmosdb_account' = 18
             'aws_eks_cluster' = 25
             'aws_rds_instance' = 12

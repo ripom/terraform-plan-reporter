@@ -314,6 +314,88 @@ The repository includes sample files for testing:
 - PowerShell 5.1 or higher
 - No external dependencies
 
+## Supported Resources
+
+The script includes comprehensive coverage of **90+ Azure resources** across multiple categories with cost estimation, carbon footprint calculation, and security analysis.
+
+### Azure Resources by Category
+
+#### **Compute (16 resources)**
+- Virtual Machines: `azurerm_virtual_machine`, `azurerm_windows_virtual_machine`, `azurerm_linux_virtual_machine`
+- Container Services: `azurerm_kubernetes_cluster`, `azurerm_container_group`, `azurerm_container_registry`, `azurerm_container_app`, `azurerm_container_app_environment`
+- App Services: `azurerm_app_service`, `azurerm_function_app`, `azurerm_linux_web_app`, `azurerm_windows_web_app`
+- Scale & Batch: `azurerm_virtual_machine_scale_set`, `azurerm_batch_account`
+- Integration: `azurerm_logic_app_workflow`
+- Hosting: `azurerm_bastion_host`
+
+#### **Database (12 resources)**
+- SQL: `azurerm_sql_database`, `azurerm_mssql_database`, `azurerm_sql_managed_instance`
+- PostgreSQL: `azurerm_postgresql_server`, `azurerm_postgresql_flexible_server`
+- MySQL: `azurerm_mysql_server`, `azurerm_mysql_flexible_server`
+- Other: `azurerm_mariadb_server`, `azurerm_cosmosdb_account`, `azurerm_redis_cache`, `azurerm_synapse_workspace`, `azurerm_databricks_workspace`
+
+#### **Networking (23 resources)**
+- Core: `azurerm_virtual_network`, `azurerm_subnet`, `azurerm_network_security_group`, `azurerm_network_interface`
+- Load Balancing: `azurerm_lb`, `azurerm_application_gateway`, `azurerm_traffic_manager_profile`, `azurerm_traffic_manager_endpoint`
+- Security: `azurerm_firewall`, `azurerm_firewall_policy`, `azurerm_web_application_firewall_policy`
+- Gateways: `azurerm_vpn_gateway`, `azurerm_virtual_network_gateway`, `azurerm_local_network_gateway`, `azurerm_point_to_site_vpn_gateway`, `azurerm_nat_gateway`
+- Front Door: `azurerm_front_door`, `azurerm_frontdoor_firewall_policy`
+- DNS: `azurerm_dns_zone`, `azurerm_private_dns_zone`
+- Virtual WAN: `azurerm_virtual_wan`, `azurerm_virtual_hub`
+- Other: `azurerm_public_ip`, `azurerm_express_route_circuit`, `azurerm_route_table`, `azurerm_network_watcher`, `azurerm_private_endpoint`
+
+#### **Storage (9 resources)**
+- Accounts: `azurerm_storage_account`, `azurerm_data_lake_store`
+- Sub-resources: `azurerm_storage_blob`, `azurerm_storage_container`, `azurerm_storage_queue`, `azurerm_storage_table`
+- CDN: `azurerm_cdn_profile`, `azurerm_app_service_plan`
+
+#### **Security & Identity (6 resources)**
+- Key Vault: `azurerm_key_vault`, `azurerm_key_vault_secret`, `azurerm_key_vault_key`, `azurerm_key_vault_certificate`
+- Policies: `azurerm_policy_assignment`, `azurerm_policy_definition`
+
+#### **Monitoring & Logging (6 resources)**
+- Insights: `azurerm_application_insights`, `azurerm_log_analytics_workspace`
+- Monitoring: `azurerm_monitor_diagnostic_setting`, `azurerm_monitor_action_group`, `azurerm_monitor_metric_alert`, `azurerm_monitor_autoscale_setting`, `azurerm_monitor_scheduled_query_rules_alert`
+
+#### **Backup & Recovery (6 resources)**
+- Recovery Services: `azurerm_recovery_services_vault`, `azurerm_backup_policy_vm`, `azurerm_backup_protected_vm`
+- Site Recovery: `azurerm_site_recovery_fabric`, `azurerm_site_recovery_replication_policy`, `azurerm_site_recovery_protection_container`
+
+#### **Integration & Messaging (4 resources)**
+- Messaging: `azurerm_service_bus_namespace`, `azurerm_eventhub_namespace`, `azurerm_eventgrid_topic`
+- API: `azurerm_api_management`
+
+#### **AI & Machine Learning (2 resources)**
+- `azurerm_cognitive_account`
+- `azurerm_machine_learning_workspace`
+
+#### **Management (2 resources)**
+- `azurerm_resource_group`
+- `azurerm_management_lock`
+
+### AWS Resources (Limited Support)
+- Compute: `aws_instance`, `aws_eks_cluster`, `aws_ecs_cluster`
+- Database: `aws_rds_instance`
+- Storage: `aws_s3_bucket`, `aws_ebs_volume`
+- Networking: `aws_vpc`, `aws_subnet`, `aws_security_group`, `aws_elb`
+- Caching: `aws_elasticache_cluster`
+- Identity: `aws_iam_role`
+
+### GCP Resources (Limited Support)
+- Compute: `google_compute_instance`, `google_container_cluster`
+- Database: `google_sql_database_instance`
+- Storage: `google_storage_bucket`, `google_compute_disk`
+- Networking: `google_compute_network`, `google_compute_subnetwork`
+
+### Multi-Cloud Coverage
+The script automatically detects and categorizes resources from Azure, AWS, and GCP, providing:
+- ✅ **Cost estimation** with monthly USD approximations
+- ✅ **Carbon footprint** calculation with regional intensity factors
+- ✅ **Security analysis** for sensitive attributes
+- ✅ **Governance scoring** for compliance and best practices
+
+**Note:** If you need support for additional resources, please open an issue or submit a pull request!
+
 ## How It Works
 
 ### Parsing Logic
