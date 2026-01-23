@@ -437,7 +437,8 @@ foreach ($line in $lines) {
     # "  # azurerm_resource.name will be destroyed"
     # "  # azurerm_resource.name will be updated"
     # "  # azurerm_resource.name must be replaced"
-    if ($cleanLine -match '^\s*#\s+(.+?)\s+(will be|must be)\s+(created|destroyed|updated|replaced)') {
+    # "  # azurerm_resource.name will be imported"
+    if ($cleanLine -match '^\s*#\s+(.+?)\s+(will be|must be)\s+(created|destroyed|updated|replaced|imported)') {
         # Save previous resource if exists
         if ($currentResource) {
             $results += [PSCustomObject]@{
@@ -456,6 +457,7 @@ foreach ($line in $lines) {
             "destroyed" { "Destroy" }
             "updated" { "Update" }
             "replaced" { "Replace" }
+            "imported" { "Import" }
             default { $action }
         }
         
@@ -611,6 +613,7 @@ if ($results.Count -eq 0) {
                 "Update" { "Yellow" }
                 "Destroy" { "Red" }
                 "Replace" { "Magenta" }
+                "Import" { "Cyan" }
                 default { "White" }
             }
             
@@ -619,12 +622,14 @@ if ($results.Count -eq 0) {
         
         # Display summary
         Write-Host "\n================================================================================\n" -ForegroundColor Cyan
+        $importCount = ($filteredResults | Where-Object { $_.Action -eq "Import" }).Count
         $createCount = ($filteredResults | Where-Object { $_.Action -eq "Create" }).Count
         $updateCount = ($filteredResults | Where-Object { $_.Action -eq "Update" }).Count
         $destroyCount = ($filteredResults | Where-Object { $_.Action -eq "Destroy" }).Count
         $replaceCount = ($filteredResults | Where-Object { $_.Action -eq "Replace" }).Count
         
         Write-Host "Total: $($filteredResults.Count) resources" -ForegroundColor White
+        if ($importCount -gt 0) { Write-Host "  $importCount to import" -ForegroundColor Cyan }
         if ($createCount -gt 0) { Write-Host "  $createCount to create" -ForegroundColor Green }
         if ($updateCount -gt 0) { Write-Host "  $updateCount to update" -ForegroundColor Yellow }
         if ($destroyCount -gt 0) { Write-Host "  $destroyCount to destroy" -ForegroundColor Red }
@@ -688,7 +693,7 @@ if ($results.Count -eq 0) {
         if ($ListReplaced) { $actionsToShow += "Replace" }
     } else {
         # Show all if no filter switches are specified
-        $actionsToShow = @("Create", "Update", "Destroy", "Replace")
+        $actionsToShow = @("Import", "Create", "Update", "Destroy", "Replace")
     }
     
     Write-Host "\n================================================================================\n" -ForegroundColor Cyan
@@ -709,6 +714,7 @@ if ($results.Count -eq 0) {
         }
         
         $color = switch ($group.Name) {
+            "Import" { "Cyan" }
             "Create" { "Green" }
             "Update" { "Yellow" }
             "Destroy" { "Red" }
@@ -717,6 +723,7 @@ if ($results.Count -eq 0) {
         }
         
         $icon = switch ($group.Name) {
+            "Import" { "⇪" }
             "Create" { "✓" }
             "Update" { "≈" }
             "Destroy" { "✗" }
@@ -751,17 +758,23 @@ if ($results.Count -eq 0) {
     Write-Host "================================================================================`n" -ForegroundColor Cyan
     
     # Display summary
+    $importCount = ($grouped | Where-Object { $_.Name -eq "Import" }).Count
     $createCount = ($grouped | Where-Object { $_.Name -eq "Create" }).Count
     $updateCount = ($grouped | Where-Object { $_.Name -eq "Update" }).Count
     $destroyCount = ($grouped | Where-Object { $_.Name -eq "Destroy" }).Count
     $replaceCount = ($grouped | Where-Object { $_.Name -eq "Replace" }).Count
     
+    if ($importCount -eq $null) { $importCount = 0 }
     if ($createCount -eq $null) { $createCount = 0 }
     if ($updateCount -eq $null) { $updateCount = 0 }
     if ($destroyCount -eq $null) { $destroyCount = 0 }
     if ($replaceCount -eq $null) { $replaceCount = 0 }
     
     Write-Host "Plan: " -ForegroundColor White
+    if ($importCount -gt 0) {
+        Write-Host "$importCount to import" -NoNewline -ForegroundColor Cyan
+        Write-Host ", "
+    }
     Write-Host "$createCount to add" -NoNewline -ForegroundColor Green
     Write-Host ", "
     Write-Host "$updateCount to change" -NoNewline -ForegroundColor Yellow
@@ -822,6 +835,12 @@ if ($results.Count -eq 0) {
         foreach ($item in $resourcesToAnalyze) {
             $resourceType = ($item.Resource -split '\.')[0]
             $changesText = ($item.Changes | ForEach-Object { $_.Line }) -join ' '
+
+            # Imports add resources to state but don't represent infrastructure deltas.
+            # Exclude them from cost/carbon/security delta scoring to avoid misleading insights.
+            if ($item.Action -eq "Import") {
+                continue
+            }
             
             # === COST ANALYSIS ===
             if ($knowledgeBase.CostResources.High -contains $resourceType) {
@@ -1602,14 +1621,17 @@ if ($results.Count -eq 0) {
         
         # Resource Changes Summary
         Write-Host "📦 Resource Changes:" -ForegroundColor White
+        $totalImport = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Import" }).Count
         $totalCreate = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Create" }).Count
         $totalUpdate = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Update" }).Count
         $totalDestroy = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Destroy" }).Count
         $totalReplace = ($resourcesToAnalyze | Where-Object { $_.Action -eq "Replace" }).Count
-        $totalResources = $totalCreate + $totalUpdate + $totalDestroy + $totalReplace
+        $totalResources = $totalImport + $totalCreate + $totalUpdate + $totalDestroy + $totalReplace
         
         Write-Host "   Total Resources Affected: " -NoNewline -ForegroundColor Gray
         Write-Host $totalResources -ForegroundColor White
+        Write-Host "   • Importing: " -NoNewline -ForegroundColor Gray
+        Write-Host $totalImport -NoNewline -ForegroundColor Cyan
         Write-Host "   • Creating: " -NoNewline -ForegroundColor Gray
         Write-Host $totalCreate -NoNewline -ForegroundColor Green
         Write-Host " | Updating: " -NoNewline -ForegroundColor Gray

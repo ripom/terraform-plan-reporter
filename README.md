@@ -19,7 +19,7 @@ Main script that parses Terraform plan output and generates a human-readable rep
 
 #### Features
 
-- ✓ Categorizes resources by action type (Create, Update, Destroy, Replace)
+- ✓ Categorizes resources by action type (Import, Create, Update, Destroy, Replace)
 - ✓ Color-coded output for easy visual scanning
 - ✓ Optional detailed attribute change display with color-coded diff
 - ✓ Filtering by specific action types
@@ -210,6 +210,9 @@ The color coding reflects the **direction of environmental impact**, not severit
 ```
 ================================================================================
 
+⇪ IMPORT: 1
+  • azurerm_log_analytics_workspace.securitylaw
+
 ✓ CREATE: 5
   • azurerm_resource_group.rg_example
   • azurerm_virtual_network.vnet_example
@@ -232,6 +235,7 @@ The color coding reflects the **direction of environmental impact**, not severit
 ================================================================================
 
 Plan: 
+1 to import,
 5 to add, 
 2 to change, 
 1 to destroy, 
