@@ -78,11 +78,11 @@ Plan: 5 to add, 2 to change, 0 to destroy.
 
 **Output**:
 ```
-Action     ResourceType                    ResourceName
-------     ------------                    ------------
-Create     azurerm_virtual_machine         web_vm[0]
-Update     azurerm_storage_account         storage_prod
-Destroy    azurerm_public_ip              old_ip
+Action     ResourceType                          ResourceName                   AzureName                 ResourceGroup        Subscription
+------     ------------                          ------------                   ---------                 -------------        ------------
+Create     azurerm_virtual_machine                web_vm[0]                      web-vm-prod-01            rg-compute           16bd14c8-b405-...
+Update     azurerm_storage_account                storage_prod                   saprodflowlogs            rg-storage           16bd14c8-b405-...
+Destroy    azurerm_public_ip                      old_ip                         pip-old-dev               rg-network           16bd14c8-b405-...
 ```
 
 **Use When**:

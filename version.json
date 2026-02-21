@@ -1,0 +1,97 @@
+{
+  "version": "1.7.0",
+  "name": "Terraform Plan Parser",
+  "description": "PowerShell-based tool to parse and humanize Terraform plan output",
+  "releaseDate": "2026-02-19",
+  "repository": "parsing_terraform_output",
+  "history": [
+    {
+      "version": "1.7.0",
+      "date": "2026-02-19",
+      "description": "Self-update, HTML report with info tooltips & disclaimer, and module resource type fix",
+      "changes": [
+        "Added -Update switch to check for new versions on GitHub",
+        "Displays cumulative changelog between local and remote versions",
+        "Downloads and replaces script files after user confirmation",
+        "Uses parameter sets so -LogFile is only required for report mode",
+        "Added -OutputHtml parameter to generate a self-contained HTML report",
+        "HTML report includes summary cards, resource table, attribute changes, cost/security/carbon/governance insights, and executive summary",
+        "Insights are always computed for the HTML report regardless of -ShowInsights",
+        "HTML report auto-opens in the default browser after generation",
+        "Dark-themed responsive design with collapsible sections",
+        "All report sections are collapsible (Resources, Attribute Changes, Cost, Security, Carbon, Governance, Executive Summary)",
+        "Each section header includes an item count for at-a-glance overview",
+        "Executive Summary expanded by default; all other sections collapsed",
+        "Added contextual info (i) icons on each section header with hover tooltips explaining colors, symbols, and methodology",
+        "Added disclaimer in HTML report noting all insights are heuristic-based estimates, not exact calculations",
+        "Added Get-TfResourceType and Split-TfResource helper functions to correctly extract provider resource types from module-prefixed Terraform addresses",
+        "Fixed resource type extraction for module-prefixed resources (e.g., module.alz.azapi_resource.name now correctly identifies azapi_resource instead of module)",
+        "Fixed insights (cost, security, carbon) showing zeros for plans with module-prefixed resources",
+        "Fixed -Category and -ResourceType filters for module-prefixed resources",
+        "Fixed HTML and console table display to show correct ResourceType and ResourceName columns",
+        "HTML resources section is now collapsed by default with click-to-expand"
+      ]
+    },
+    {
+      "version": "1.6.0",
+      "date": "2026-01-23",
+      "description": "Import parsing support",
+      "changes": [
+        "Added import parsing for Terraform import blocks"
+      ]
+    },
+    {
+      "version": "1.5.0",
+      "date": "2025-11-23",
+      "description": "Extended resource support",
+      "changes": [
+        "Added support for more resource types",
+        "Updated documentation with the list of supported resources"
+      ]
+    },
+    {
+      "version": "1.4.0",
+      "date": "2025-11-22",
+      "description": "Carbon footprint analysis and destroy logic fix",
+      "changes": [
+        "Added carbon emission analysis with regional carbon intensity and sustainability recommendations",
+        "Fixed logic to show improvement in the report when destroying resources"
+      ]
+    },
+    {
+      "version": "1.3.0",
+      "date": "2025-11-21",
+      "description": "Insights, filters, and governance analysis",
+      "changes": [
+        "Added ShowInsights switch with cost, security, and governance analysis",
+        "Added resource filtering by Category, ResourceName, and ResourceType (supports wildcards)",
+        "Added TableAll view for listing all resources",
+        "Added tags and naming convention validation (Azure CAF, AWS, GCP)",
+        "Added dedicated use cases documentation",
+        "Enhanced ShowChanges with italic formatting and color-coded diff"
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "date": "2025-11-19",
+      "description": "Replace scenario and documentation improvements",
+      "changes": [
+        "Fixed bug that was missing the replace scenario",
+        "Updated README with replace output example",
+        "Improved documentation for Convert-AzDevOpsLog script",
+        "Added more comments in scripts"
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2025-11-19",
+      "description": "Initial release",
+      "changes": [
+        "Terraform plan parser with human-readable output",
+        "Color-coded output by action type (Create, Update, Destroy)",
+        "Convert-AzDevOpsLog script for cleaning raw log output",
+        "Summary statistics"
+      ]
+    }
+  ]
+}

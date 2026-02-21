@@ -1,6 +1,14 @@
 # Terraform Plan Parser
 
+![Version](https://img.shields.io/badge/version-1.7.0-blue)
+
 A PowerShell-based tool to parse and humanize Terraform plan output, making it easier to identify which resources will be impacted by infrastructure changes.
+
+> **Current Version:** 1.7.0 — See [version.json](version.json) for full release history.
+
+## Prerequisites
+
+- **PowerShell 7.0** or later is required. You can download it from [https://github.com/PowerShell/PowerShell](https://github.com/PowerShell/PowerShell).
 
 ## Overview
 
@@ -21,20 +29,31 @@ Main script that parses Terraform plan output and generates a human-readable rep
 
 - ✓ Categorizes resources by action type (Import, Create, Update, Destroy, Replace)
 - ✓ Color-coded output for easy visual scanning
-- ✓ Optional detailed attribute change display with color-coded diff
+- ✓ Attribute change display for Update/Replace resources with color-coded diff
 - ✓ Filtering by specific action types
 - ✓ Filtering by resource category (Compute, Storage, Network, Database, Security, Monitoring)
 - ✓ Filtering by resource name pattern (supports wildcards)
 - ✓ Filtering by resource type (supports wildcards)
-- ✓ Table view for listing all resources
+- ✓ Table view for listing all resources with Azure Name, Resource Group, and Subscription columns
 - ✓ Intelligent insights: cost estimation, security impact, governance analysis
   - Cost Impact: Categorizes resources as High/Medium/Low cost with monthly estimates
   - Security Analysis: Detects security-sensitive changes and trends
   - Governance: Analyzes tags, naming conventions, policies, backup, RBAC, network isolation, and more
-  - Naming Convention Detection: Validates Azure CAF, AWS, and GCP naming standards
+  - Naming Convention Detection: Validates Azure CAF naming standards against **actual Azure resource names** (not Terraform addresses)
   - **Carbon Emission Analysis**: Estimates CO2 emissions with regional carbon intensity and sustainability recommendations
 - ✓ Automatic ANSI color code and timestamp removal
 - ✓ Summary statistics at the end
+- ✓ Self-update from GitHub with cumulative changelog display
+- ✓ HTML report generation with embedded insights, executive summary, and comprehensive **legend/methodology** section
+  - Collapsible sections for all report areas (Resources, Attribute Changes, Cost, Security, Carbon, Governance, Executive Summary, Legend)
+  - Contextual info (&#x24D8;) icons on each section header with hover tooltips explaining colors, symbols, and methodology
+  - Each section header includes an item count for at-a-glance overview
+  - Executive Summary expanded by default; all other sections collapsed
+  - Disclaimer noting that all insights are heuristic-based approximations, not exact billing/emission/audit data
+
+#### Documentation
+
+- How `-ShowInsights` works (heuristics, interpretation, false positives): `SHOW_INSIGHTS.md`
 
 #### Usage
 
@@ -47,6 +66,10 @@ Main script that parses Terraform plan output and generates a human-readable rep
 
 # Show intelligent insights (cost, security, governance)
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ShowInsights
+
+# Show insights and return a structured object (useful for automation)
+$report = .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ShowInsights -PassThru
+$report.Insights.Security.Negative.Count
 
 # Display all resources in a table format
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -TableAll
@@ -83,6 +106,18 @@ Main script that parses Terraform plan output and generates a human-readable rep
 
 # Analyze naming conventions for specific resource types
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ResourceType "azurerm_resource_group" -ShowInsights
+
+# Check for updates and self-update from GitHub
+.\Get-TerraformPlanReport.ps1 -Update
+
+# Generate a self-contained HTML report with auto-generated timestamped name
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -OutputHtml
+
+# Generate HTML report with a custom filename
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -OutputHtml -OutputHtmlPath .\report.html
+
+# Combine with filters for a targeted HTML report
+.\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -Category Compute -OutputHtml
 ```
 
 #### Intelligent Insights Features
@@ -115,22 +150,23 @@ When using the `-ShowInsights` switch, the script provides comprehensive analysi
 
 **Governance & Compliance Analysis**
 - **Tags**: Detects resources with tags configured
-- **Naming Conventions**: Validates against best practices
+- **Naming Conventions**: Validates the **actual Azure resource name** (extracted from the plan's `name` attribute) rather than the Terraform address
   - Azure CAF prefixes (rg-, vnet-, vm-, kv-, etc.)
-  - AWS prefixes (vpc-, ec2-, s3-, lambda-, etc.)
-  - GCP prefixes (vpc-, vm-, gke-, bucket-, etc.)
   - Environment indicators (-prod, -dev, -test, -staging, etc.)
-  - Region indicators (-eastus, -us-west-2, -eu-west-1, etc.)
+  - Region indicators (-eastus, -westeurope, -northeurope, etc.)
   - Numbered instances (-01, -02, -v1, etc.)
-  - Multi-segment structure (4+ parts)
-- **Policies & Monitoring**: Azure Policy, AWS Config, monitoring resources
+  - Multi-segment structure (3+ hyphenated parts)
+  - Excludes: policy/RBAC/management-group resources (governance objects), auto-generated names (UUIDs, timestamps)
+- **Policies & Monitoring**: Azure Policy, monitoring resources
 - **Backup & Retention**: Backup configurations, retention policies
 - **Resource Locks**: Management locks for production resources
 - **RBAC/IAM**: Role assignments and identity configurations
 - **Network Isolation**: Private endpoints, VNet integration
 - **Audit Logging**: Diagnostic settings, log analytics
-- **Compliance Frameworks**: Security center, compliance policies
+- **Compliance Frameworks**: Security center, compliance policies (bulk `azapi_resource` matches are summarized with counts)
 - **Cost Management**: Budgets, cost exports
+
+> **Note:** All governance checks use type-aware matching against the Terraform resource type (not substring matching on the full address). For `azapi_resource`, the instance name part (e.g., `policy_assignments`, `role_definitions`) is checked against the pattern. Bulk matches from Azure Landing Zone plans are automatically grouped into summary entries (e.g., "132 azapi_resource.policy_role_assignments detected") to reduce noise.
 
 Example output:
 ```
@@ -194,9 +230,9 @@ The color coding reflects the **direction of environmental impact**, not severit
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `LogFile` | String | Yes | Path to the Terraform plan output file |
-| `ShowChanges` | Switch | No | Display detailed attribute changes for each resource with color-coded diff |
+| `ShowChanges` | Switch | No | Display attribute changes in console output (changes are always captured; this controls console display only; HTML reports always include them; only Update/Replace diffs are shown) |
 | `ShowInsights` | Switch | No | Display intelligent analysis of cost, security, and governance impacts |
-| `TableAll` | Switch | No | Display all resources in a table format with Action, ResourceType, and ResourceName |
+| `TableAll` | Switch | No | Display all resources in a table format with Action, ResourceType, ResourceName, AzureName, ResourceGroup, and Subscription |
 | `ListCreated` | Switch | No | Show only resources that will be created |
 | `ListChanged` | Switch | No | Show only resources that will be updated |
 | `ListDestroyed` | Switch | No | Show only resources that will be destroyed |
@@ -204,6 +240,10 @@ The color coding reflects the **direction of environmental impact**, not severit
 | `Category` | String | No | Filter by category: Compute, Storage, Network, Database, Security, Monitoring, All |
 | `ResourceName` | String | No | Filter by resource name pattern (supports wildcards, e.g., "*prod*") |
 | `ResourceType` | String | No | Filter by resource type (supports wildcards, e.g., "azurerm_virtual_machine") |
+| `PassThru` | Switch | No | Output a structured object with summary counts (and Insights when -ShowInsights is used) |
+| `OutputHtml` | Switch | No | Generate a self-contained HTML report (default: timestamped filename, insights always included, auto-opens in browser) |
+| `OutputHtmlPath` | String | No | Custom path for the HTML report file (only used with -OutputHtml) |
+| `Update` | Switch | No | Check for updates from GitHub, show cumulative changes, and self-update |
 
 #### Output Example
 
@@ -377,26 +417,23 @@ The script includes comprehensive coverage of **90+ Azure resources** across mul
 - `azurerm_resource_group`
 - `azurerm_management_lock`
 
-### AWS Resources (Limited Support)
-- Compute: `aws_instance`, `aws_eks_cluster`, `aws_ecs_cluster`
-- Database: `aws_rds_instance`
-- Storage: `aws_s3_bucket`, `aws_ebs_volume`
-- Networking: `aws_vpc`, `aws_subnet`, `aws_security_group`, `aws_elb`
-- Caching: `aws_elasticache_cluster`
-- Identity: `aws_iam_role`
+### Azure Landing Zone (ALZ) Compliance
+When the plan contains Azure Policy assignments from an ALZ/Enterprise-Scale deployment, the report categorizes them against well-known ALZ policy categories:
+- **Security**: Deny-MgmtPorts-Internet, Deny-Public-IP, Deploy-MDFC, Enforce-TLS-SSL
+- **Identity**: Deny-Public-IP, Deny-Subnet-Without-Nsg
+- **Networking**: Deploy-Private-DNS-Zones, Enforce-Subnet-Private, Deploy-Nsg-FlowLogs
+- **Logging**: Deploy-AzActivity-Log, Enable-AllLogs-to-law, Deploy-Diag-LogsCat
+- **Monitoring**: Deploy-VM-Monitoring, Deploy-VM-ChangeTrack, Enable-AUM-CheckUpdates
+- **DataProtection**: Deploy-VM-Backup, Deploy-SQL-TDE, Deploy-SQL-Threat, Deploy-MDFC-SqlAtp
+- **Compliance**: allowed_locations, Deny-Classic-Resources, Audit-ZoneResiliency
+- **KeyManagement**: Enforce-GR-KeyVault
+- **Storage**: Deny-Storage-http
 
-### GCP Resources (Limited Support)
-- Compute: `google_compute_instance`, `google_container_cluster`
-- Database: `google_sql_database_instance`
-- Storage: `google_storage_bucket`, `google_compute_disk`
-- Networking: `google_compute_network`, `google_compute_subnetwork`
-
-### Multi-Cloud Coverage
-The script automatically detects and categorizes resources from Azure, AWS, and GCP, providing:
+The script provides:
 - ✅ **Cost estimation** with monthly USD approximations
 - ✅ **Carbon footprint** calculation with regional intensity factors
 - ✅ **Security analysis** for sensitive attributes
-- ✅ **Governance scoring** for compliance and best practices
+- ✅ **Governance scoring** with ALZ compliance validation
 
 **Note:** If you need support for additional resources, please open an issue or submit a pull request!
 
@@ -410,7 +447,7 @@ The parser:
 3. Identifies resource action lines matching patterns:
    - `# <resource_name> will be <action>` (created, destroyed, updated, replaced)
    - `# <resource_name> must be replaced`
-4. Captures attribute changes for each resource when `-ShowChanges` is enabled
+4. Always captures attribute changes for each resource (only Update/Replace diffs are displayed; Create/Destroy show full attribute dumps and are excluded)
 5. Groups resources by action type
 6. Displays formatted output with color coding and icons
 
@@ -432,6 +469,20 @@ The parser:
 ## Contributing
 
 Feel free to submit issues or pull requests to improve the scripts.
+
+## Version History
+
+See [version.json](version.json) for the complete version history with detailed changelogs.
+
+| Version | Date       | Description                                     |
+|---------|------------|-------------------------------------------------|
+| 1.7.0   | 2026-02-19 | Self-update, HTML report with info tooltips & disclaimer, module resource type fix |
+| 1.6.0   | 2026-01-23 | Import parsing support                          |
+| 1.5.0   | 2025-11-23 | Extended resource support                       |
+| 1.4.0   | 2025-11-22 | Carbon footprint analysis and destroy logic fix |
+| 1.3.0   | 2025-11-21 | Insights, filters, and governance analysis      |
+| 1.1.0   | 2025-11-19 | Replace scenario and documentation improvements|
+| 1.0.0   | 2025-11-19 | Initial release                                 |
 
 ## License
 
