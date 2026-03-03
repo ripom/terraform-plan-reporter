@@ -1,10 +1,10 @@
 # Terraform Plan Parser
 
-![Version](https://img.shields.io/badge/version-1.7.0-blue)
+![Version](https://img.shields.io/badge/version-1.7.1-blue)
 
 A PowerShell-based tool to parse and humanize Terraform plan output, making it easier to identify which resources will be impacted by infrastructure changes.
 
-> **Current Version:** 1.7.0 — See [version.json](version.json) for full release history.
+> **Current Version:** 1.7.1 — See [version.json](version.json) for full release history.
 
 ## Prerequisites
 
@@ -73,6 +73,13 @@ $report.Insights.Security.Negative.Count
 
 # Display all resources in a table format
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -TableAll
+
+# Capture table output into a variable (works with both -TableAll and normal display)
+$report = .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -TableAll
+$report | Format-Table -AutoSize
+
+# Combine -TableAll with insights and structured output
+$report = .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -TableAll -ShowInsights -PassThru
 
 # Filter to show only resources being created
 .\Get-TerraformPlanReport.ps1 -LogFile .\tfplan.out -ListCreated
@@ -476,6 +483,7 @@ See [version.json](version.json) for the complete version history with detailed 
 
 | Version | Date       | Description                                     |
 |---------|------------|-------------------------------------------------|
+| 1.7.1   | 2026-03-03 | Fix -TableAll pipeline output and deduplicate filter logic |
 | 1.7.0   | 2026-02-19 | Self-update, HTML report with info tooltips & disclaimer, module resource type fix |
 | 1.6.0   | 2026-01-23 | Import parsing support                          |
 | 1.5.0   | 2025-11-23 | Extended resource support                       |

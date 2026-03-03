@@ -112,7 +112,7 @@
     Generates a full HTML report at the specified path and opens it in the default browser.
 
 .NOTES
-    Version: 1.7.0
+    Version: 1.7.1
     Requires PowerShell 7.0 or later.
 #>
 
@@ -1409,63 +1409,83 @@ if ($results.Count -eq 0) {
         }
     }
 } else {
-    # If TableAll is specified, display table and exit
-    if ($TableAll) {
-        # Apply filters first
-        $filteredResults = $results
-        
-        # Filter by Category
-        if ($Category -and $Category -ne 'All') {
-            $categoryPatterns = $knowledgeBase.Categories[$Category]
-            $filteredResults = $filteredResults | Where-Object {
-                $resourceType = Get-TfResourceType $_.Resource
-                $match = $false
-                foreach ($pattern in $categoryPatterns) {
-                    if ($resourceType -match $pattern) {
-                        $match = $true
-                        break
-                    }
+    # Apply filters (shared by both TableAll and normal display)
+    $filteredResults = $results
+    
+    # Filter by Category
+    if ($Category -and $Category -ne 'All') {
+        $categoryPatterns = $knowledgeBase.Categories[$Category]
+        $filteredResults = $filteredResults | Where-Object {
+            $resourceType = Get-TfResourceType $_.Resource
+            $match = $false
+            foreach ($pattern in $categoryPatterns) {
+                if ($resourceType -match $pattern) {
+                    $match = $true
+                    break
                 }
-                $match
+            }
+            $match
+        }
+    }
+    
+    # Filter by ResourceName (supports wildcards)
+    if ($ResourceName) {
+        $filteredResults = $filteredResults | Where-Object {
+            $_.Resource -like $ResourceName
+        }
+    }
+    
+    # Filter by ResourceType (supports wildcards)
+    if ($ResourceType) {
+        $filteredResults = $filteredResults | Where-Object {
+            $resType = Get-TfResourceType $_.Resource
+            $resType -like $ResourceType
+        }
+    }
+    
+    # Filter by Action (based on List switches) — applies to both TableAll and normal display
+    if ($ListCreated -or $ListChanged -or $ListDestroyed -or $ListReplaced) {
+        $allowedActions = @()
+        if ($ListCreated) { $allowedActions += "Create" }
+        if ($ListChanged) { $allowedActions += "Update" }
+        if ($ListDestroyed) { $allowedActions += "Destroy" }
+        if ($ListReplaced) { $allowedActions += "Replace" }
+        
+        $filteredResults = $filteredResults | Where-Object {
+            $allowedActions -contains $_.Action
+        }
+    }
+    
+    if ($filteredResults.Count -eq 0) {
+        Write-Host "No resources match the specified filters" -ForegroundColor Yellow
+        if ($Category) { Write-Host "  Category: $Category" -ForegroundColor Gray }
+        if ($ResourceName) { Write-Host "  ResourceName: $ResourceName" -ForegroundColor Gray }
+        if ($ResourceType) { Write-Host "  ResourceType: $ResourceType" -ForegroundColor Gray }
+
+        if ($PassThru) {
+            [PSCustomObject]@{
+                LogFile  = $LogFile
+                Filters  = [PSCustomObject]@{
+                    Category     = $Category
+                    ResourceName = $ResourceName
+                    ResourceType = $ResourceType
+                }
+                Summary  = [PSCustomObject]@{
+                    Total   = 0
+                    Import  = 0
+                    Create  = 0
+                    Update  = 0
+                    Destroy = 0
+                    Replace = 0
+                }
+                Insights = $null
             }
         }
-        
-        # Filter by ResourceName (supports wildcards)
-        if ($ResourceName) {
-            $filteredResults = $filteredResults | Where-Object {
-                $_.Resource -like $ResourceName
-            }
-        }
-        
-        # Filter by ResourceType (supports wildcards)
-        if ($ResourceType) {
-            $filteredResults = $filteredResults | Where-Object {
-                $resType = Get-TfResourceType $_.Resource
-                $resType -like $ResourceType
-            }
-        }
-        
-        # Filter by Action (based on List switches)
-        if ($ListCreated -or $ListChanged -or $ListDestroyed -or $ListReplaced) {
-            $allowedActions = @()
-            if ($ListCreated) { $allowedActions += "Create" }
-            if ($ListChanged) { $allowedActions += "Update" }
-            if ($ListDestroyed) { $allowedActions += "Destroy" }
-            if ($ListReplaced) { $allowedActions += "Replace" }
-            
-            $filteredResults = $filteredResults | Where-Object {
-                $allowedActions -contains $_.Action
-            }
-        }
-        
-        if ($filteredResults.Count -eq 0) {
-            Write-Host "No resources match the specified filters" -ForegroundColor Yellow
-            if ($Category) { Write-Host "  Category: $Category" -ForegroundColor Gray }
-            if ($ResourceName) { Write-Host "  ResourceName: $ResourceName" -ForegroundColor Gray }
-            if ($ResourceType) { Write-Host "  ResourceType: $ResourceType" -ForegroundColor Gray }
-            return
-        }
-        
+        return
+    }
+    
+    # ─── Display: TableAll or Grouped ────────────────────────────────────────────
+    if ($TableAll) {
         Write-Host "\n================================================================================\n" -ForegroundColor Cyan
         Write-Host "ALL RESOURCES" -ForegroundColor Cyan
         
@@ -1525,52 +1545,12 @@ if ($results.Count -eq 0) {
         if ($destroyCount -gt 0) { Write-Host "  $destroyCount to destroy" -ForegroundColor Red }
         if ($replaceCount -gt 0) { Write-Host "  $replaceCount to replace" -ForegroundColor Magenta }
         Write-Host ""
-        
-        return
+
+        # Emit table data to the pipeline so $report = ... captures it
+        $tableData
     }
-    
-    # Apply filters
-    $filteredResults = $results
-    
-    # Filter by Category
-    if ($Category -and $Category -ne 'All') {
-        $categoryPatterns = $knowledgeBase.Categories[$Category]
-        $filteredResults = $filteredResults | Where-Object {
-            $resourceType = Get-TfResourceType $_.Resource
-            $match = $false
-            foreach ($pattern in $categoryPatterns) {
-                if ($resourceType -match $pattern) {
-                    $match = $true
-                    break
-                }
-            }
-            $match
-        }
-    }
-    
-    # Filter by ResourceName (supports wildcards)
-    if ($ResourceName) {
-        $filteredResults = $filteredResults | Where-Object {
-            $_.Resource -like $ResourceName
-        }
-    }
-    
-    # Filter by ResourceType (supports wildcards)
-    if ($ResourceType) {
-        $filteredResults = $filteredResults | Where-Object {
-            $resType = Get-TfResourceType $_.Resource
-            $resType -like $ResourceType
-        }
-    }
-    
-    if ($filteredResults.Count -eq 0) {
-        Write-Host "No resources match the specified filters" -ForegroundColor Yellow
-        if ($Category) { Write-Host "  Category: $Category" -ForegroundColor Gray }
-        if ($ResourceName) { Write-Host "  ResourceName: $ResourceName" -ForegroundColor Gray }
-        if ($ResourceType) { Write-Host "  ResourceType: $ResourceType" -ForegroundColor Gray }
-        return
-    }
-    
+    else {
+    # ─── Normal grouped display ──────────────────────────────────────────────────
     # Group by action
     $grouped = $filteredResults | Group-Object -Property Action
     
@@ -1675,7 +1655,27 @@ if ($results.Count -eq 0) {
     Write-Host "$replaceCount to replace" -NoNewline -ForegroundColor Magenta
     }
     Write-Host ".`n"
+
+    # Emit a flat table of all resources to the pipeline
+    foreach ($group in $grouped) {
+        if ($actionsToShow -notcontains $group.Name) {
+            continue
+        }
+        foreach ($item in $group.Group) {
+            $split = Split-TfResource $item.Resource
+            [PSCustomObject]@{
+                Action        = $item.Action
+                ResourceType  = $split.Type
+                ResourceName  = if ($split.Name) { $split.Name } else { $item.Resource }
+                AzureName     = if ($item.AzureName) { $item.AzureName } else { '' }
+                ResourceGroup = if ($item.ResourceGroup) { $item.ResourceGroup } else { '' }
+                Subscription  = if ($item.Subscription) { $item.Subscription } else { '' }
+            }
+        }
+    }
     
+    } # end else (normal grouped display)
+
     # Generate insights if requested or needed for HTML report
     if ($ShowInsights -or $OutputHtml) {
         if ($ShowInsights) {
